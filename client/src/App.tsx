@@ -1,6 +1,6 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation, useRoute } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -13,7 +13,9 @@ import HistoryPage from "@/pages/history";
 import ProfilePage from "@/pages/profile";
 import WalletPage from "@/pages/wallet";
 import ActiveRidePage from "@/pages/active-ride";
+import ChatPage from "@/pages/chat";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element }) {
   const { user, isLoading } = useAuth();
@@ -40,6 +42,25 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
   );
 }
 
+function ActiveRideRedirect() {
+  const { user, token } = useAuth();
+  const [location, setLocation] = useLocation();
+  
+  const { data: activeRequest } = useQuery({
+    queryKey: ['/api/service-requests/active'],
+    enabled: !!token && !!user,
+    refetchInterval: 10000,
+  });
+
+  useEffect(() => {
+    if (activeRequest && typeof activeRequest === 'object' && activeRequest !== null && 'id' in activeRequest && !location.startsWith('/ride/')) {
+      setLocation(`/ride/${(activeRequest as any).id}`);
+    }
+  }, [activeRequest, location, setLocation]);
+
+  return null;
+}
+
 function Router() {
   const { user, isLoading } = useAuth();
 
@@ -53,6 +74,7 @@ function Router() {
 
   return (
     <WebSocketProvider>
+      <ActiveRideRedirect />
       <Switch>
         <Route path="/login">
           {user ? <Redirect to="/" /> : <LoginPage />}
@@ -76,6 +98,20 @@ function Router() {
         
         <Route path="/ride/:id">
           <ProtectedRoute component={ActiveRidePage} />
+        </Route>
+        
+        <Route path="/ride/:id/chat">
+          {() => {
+            const [, params] = useRoute('/ride/:id/chat');
+            return params?.id ? (
+              <div className="h-screen flex flex-col">
+                <div className="flex-1 overflow-auto pb-16">
+                  <ChatPage serviceRequestId={params.id} />
+                </div>
+                <MobileNav />
+              </div>
+            ) : <Redirect to="/" />;
+          }}
         </Route>
         
         <Route component={NotFound} />

@@ -62,6 +62,19 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const handleWebSocketMessage = (event: any) => {
+      const data = event.detail;
+      
+      if (data.type === 'new_chat_message') {
+        queryClient.invalidateQueries({ queryKey: ['/api/chat/messages', serviceRequestId] });
+      }
+    };
+
+    window.addEventListener('websocket-message', handleWebSocketMessage);
+    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
+  }, [serviceRequestId]);
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim()) {

@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wrench, Truck, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Wrench, Truck, AlertCircle, Clock, CheckCircle, XCircle, Star } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 export default function HistoryPage() {
   const { token } = useAuth();
 
   const { data: serviceRequests = [], isLoading } = useQuery<any[]>({
-    queryKey: ['/api/service-requests/my'],
+    queryKey: ['/api/service-requests/history'],
     enabled: !!token,
   });
 
@@ -117,6 +116,19 @@ export default function HistoryPage() {
                   {request.description && (
                     <p data-testid={`text-description-${request.id}`}>
                       {request.description}
+                    </p>
+                  )}
+                  
+                  {request.rating && (
+                    <div className="flex items-center gap-1 text-yellow-500" data-testid={`text-rating-${request.id}`}>
+                      <Star className="w-4 h-4 fill-current" />
+                      <span className="font-medium">{request.rating}/5</span>
+                    </div>
+                  )}
+                  
+                  {request.ratingComment && (
+                    <p className="text-sm italic text-muted-foreground" data-testid={`text-comment-${request.id}`}>
+                      "{request.ratingComment}"
                     </p>
                   )}
                   

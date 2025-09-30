@@ -310,12 +310,32 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
                   Finalizar Serviço
                 </Button>
               )}
+              
+              {user?.userType === 'client' && (serviceRequest.status === 'arrived' || serviceRequest.status === 'accepted') && (
+                <Button onClick={handleComplete} className="flex-1" data-testid="button-client-complete">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Finalizar
+                </Button>
+              )}
 
-              <Button variant="outline" size="icon" data-testid="button-call">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => {
+                  const phone = user?.userType === 'client' ? serviceRequest.mechanic?.phone : serviceRequest.client?.phone;
+                  if (phone) window.location.href = `tel:${phone}`;
+                }}
+                data-testid="button-call"
+              >
                 <Phone className="w-4 h-4" />
               </Button>
               
-              <Button variant="outline" size="icon" data-testid="button-message">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setLocation(`/ride/${requestId}/chat`)}
+                data-testid="button-message"
+              >
                 <MessageCircle className="w-4 h-4" />
               </Button>
             </div>
