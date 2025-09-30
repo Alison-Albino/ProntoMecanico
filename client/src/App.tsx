@@ -98,6 +98,10 @@ function Router() {
           <ProtectedRoute component={ProfilePage} />
         </Route>
         
+        <Route path="/profile/:id">
+          <ProtectedRoute component={ProfilePage} />
+        </Route>
+        
         <Route path="/payment">
           <ProtectedRoute component={PaymentPage} />
         </Route>

@@ -261,7 +261,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
     }
   };
 
-  if (!serviceRequest || !mechanicLocation) {
+  if (!serviceRequest) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Card>
@@ -273,12 +273,25 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
     );
   }
 
+  if (!mechanicLocation && user?.userType === 'client' && serviceRequest.status === 'pending') {
+    return (
+      <div className="flex items-center justify-center h-screen p-4">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-lg font-medium mb-2">Aguardando mecânico...</p>
+            <p className="text-muted-foreground">Procurando um mecânico próximo a você</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const clientLocation = {
     lat: parseFloat(serviceRequest.pickupLat),
     lng: parseFloat(serviceRequest.pickupLng),
   };
 
-  const mapCenter = user?.userType === 'mechanic' ? mechanicLocation : clientLocation;
+  const mapCenter = mechanicLocation || clientLocation;
 
   return (
     <div className="h-screen flex flex-col">
@@ -292,14 +305,16 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
           style={{ width: '100%', height: '100%' }}
           data-testid="map-active-ride"
         >
-          <AdvancedMarker
-            position={mechanicLocation}
-            title="Mecânico"
-          >
-            <div className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg">
-              <Wrench className="w-6 h-6" />
-            </div>
-          </AdvancedMarker>
+          {mechanicLocation && (
+            <AdvancedMarker
+              position={mechanicLocation}
+              title="Mecânico"
+            >
+              <div className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg">
+                <Wrench className="w-6 h-6" />
+              </div>
+            </AdvancedMarker>
+          )}
 
           <AdvancedMarker
             position={clientLocation}

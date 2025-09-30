@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send } from 'lucide-react';
+import { Send, ArrowLeft, Star, User as UserIcon } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'wouter';
 
 interface ChatPageProps {
   serviceRequestId: string;
@@ -18,9 +19,10 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
   const [message, setMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: messages = [] } = useQuery<any[]>({
-    queryKey: [`/api/chat/messages/${serviceRequestId}`],
+    queryKey: ['/api/chat/messages', serviceRequestId],
     enabled: !!token && !!serviceRequestId,
   });
 
@@ -29,24 +31,24 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
     enabled: !!token && !!serviceRequestId,
   });
 
+  const otherUserId = user?.userType === 'client' 
+    ? serviceRequest?.mechanicId 
+    : serviceRequest?.clientId;
+
+  const { data: otherUser } = useQuery<any>({
+    queryKey: [`/api/users/${otherUserId}`],
+    enabled: !!token && !!otherUserId,
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      const response = await fetch(`/api/chat/messages`, {
-        method: 'POST',
-        body: JSON.stringify({
-          serviceRequestId,
-          message: content,
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+      return await apiRequest('POST', '/api/chat/messages', {
+        serviceRequestId,
+        message: content,
       });
-      if (!response.ok) throw new Error('Failed to send message');
-      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chat/messages/${serviceRequestId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/chat/messages', serviceRequestId] });
       setMessage('');
     },
     onError: (error: any) => {
@@ -67,7 +69,7 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
       const data = event.detail;
       
       if (data.type === 'new_chat_message' && data.data?.serviceRequestId === serviceRequestId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/chat/messages/${serviceRequestId}`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/chat/messages', serviceRequestId] });
       }
     };
 
@@ -98,13 +100,59 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
     });
   };
 
+  const handleViewProfile = () => {
+    if (otherUserId) {
+      setLocation(`/profile/${otherUserId}`);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <Card className="flex-1 flex flex-col">
         <CardHeader className="border-b">
-          <CardTitle data-testid="text-chat-title">
-            Chat - {serviceRequest?.serviceType}
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation(`/ride/${serviceRequestId}`)}
+              data-testid="button-back-to-ride"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            
+            <div className="flex items-center gap-3 flex-1 cursor-pointer hover-elevate p-2 rounded-lg transition-colors" onClick={handleViewProfile}>
+              <Avatar className="w-10 h-10">
+                <AvatarFallback>
+                  {otherUser ? getInitials(otherUser.username) : '?'}
+                </AvatarFallback>
+              </Avatar>
+              
+              <div className="flex-1">
+                <h3 className="font-semibold" data-testid="text-other-user-name">
+                  {otherUser?.username || 'Carregando...'}
+                </h3>
+                {otherUser?.rating && (
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                    <span>{parseFloat(otherUser.rating).toFixed(1)}</span>
+                    <span>({otherUser.totalRatings || 0})</span>
+                  </div>
+                )}
+              </div>
+
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleViewProfile();
+                }}
+                data-testid="button-view-profile"
+              >
+                <UserIcon className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         
         <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">

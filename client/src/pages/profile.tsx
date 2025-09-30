@@ -1,21 +1,33 @@
 import { useAuth } from '@/lib/auth-context';
-import { useLocation } from 'wouter';
+import { useLocation, useRoute } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, User, Mail, Phone, Star } from 'lucide-react';
+import { LogOut, User, Mail, Phone, Star, ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const [, params] = useRoute('/profile/:id');
+  const { user: currentUser, token, logout } = useAuth();
   const [, setLocation] = useLocation();
+  
+  const userId = params?.id;
+  const isOwnProfile = !userId || userId === currentUser?.id;
+  
+  const { data: profileUser, isLoading } = useQuery<any>({
+    queryKey: [`/api/users/${userId}`],
+    enabled: !!token && !!userId && !isOwnProfile,
+  });
+  
+  const user = isOwnProfile ? currentUser : profileUser;
 
   const handleLogout = async () => {
     await logout();
     setLocation('/login');
   };
 
-  if (!user) {
+  if (!user || (isLoading && !isOwnProfile)) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Carregando...</p>
@@ -34,7 +46,21 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-bold mb-4" data-testid="text-title">Perfil</h1>
+      <div className="flex items-center gap-3 mb-4">
+        {!isOwnProfile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => window.history.back()}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        )}
+        <h1 className="text-2xl font-bold" data-testid="text-title">
+          {isOwnProfile ? 'Meu Perfil' : 'Perfil'}
+        </h1>
+      </div>
       
       <Card>
         <CardHeader>
@@ -112,15 +138,24 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Button
-        variant="destructive"
-        className="w-full"
-        onClick={handleLogout}
-        data-testid="button-logout"
-      >
-        <LogOut className="w-4 h-4 mr-2" />
-        Sair
-      </Button>
+      {isOwnProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
