@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
+import { createPaymentIntent, confirmPayment } from "./stripe";
 
 declare global {
   namespace Express {
@@ -363,6 +364,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const messages = await storage.getChatMessages(req.params.serviceRequestId);
       res.json(messages);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/payments/create-intent", authMiddleware, async (req, res) => {
+    try {
+      const { serviceRequestId } = req.body;
+      
+      const serviceRequest = await storage.getServiceRequest(serviceRequestId);
+      
+      if (!serviceRequest) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (serviceRequest.clientId !== req.user!.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (!serviceRequest.totalPrice) {
+        return res.status(400).json({ message: "Preço total não calculado" });
+      }
+
+      const amount = parseFloat(serviceRequest.totalPrice);
+      const paymentIntent = await createPaymentIntent(
+        amount,
+        `Serviço: ${serviceRequest.serviceType} - ${serviceRequest.pickupAddress}`
+      );
+
+      await storage.updateServiceRequest(serviceRequestId, {
+        paymentIntentId: paymentIntent.id,
+      });
+
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/payments/confirm", authMiddleware, async (req, res) => {
+    try {
+      const { serviceRequestId } = req.body;
+      
+      const serviceRequest = await storage.getServiceRequest(serviceRequestId);
+      
+      if (!serviceRequest) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (serviceRequest.clientId !== req.user!.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (!serviceRequest.paymentIntentId) {
+        return res.status(400).json({ message: "Payment intent não encontrado" });
+      }
+
+      const paymentIntent = await confirmPayment(serviceRequest.paymentIntentId);
+
+      if (paymentIntent.status === 'succeeded') {
+        await storage.updateServiceRequest(serviceRequestId, {
+          paymentStatus: 'paid',
+        });
+
+        res.json({ status: 'success', message: 'Pagamento confirmado' });
+      } else {
+        res.json({ status: paymentIntent.status });
+      }
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

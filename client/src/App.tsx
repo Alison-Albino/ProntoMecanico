@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { WebSocketProvider } from "@/lib/websocket";
 import { MobileNav } from "@/components/mobile-nav";
 import LoginPage from "@/pages/login";
 import HomePage from "@/pages/home";
@@ -49,25 +50,27 @@ function Router() {
   }
 
   return (
-    <Switch>
-      <Route path="/login">
-        {user ? <Redirect to="/" /> : <LoginPage />}
-      </Route>
-      
-      <Route path="/">
-        <ProtectedRoute component={HomePage} />
-      </Route>
-      
-      <Route path="/history">
-        <ProtectedRoute component={HistoryPage} />
-      </Route>
-      
-      <Route path="/profile">
-        <ProtectedRoute component={ProfilePage} />
-      </Route>
-      
-      <Route component={NotFound} />
-    </Switch>
+    <WebSocketProvider>
+      <Switch>
+        <Route path="/login">
+          {user ? <Redirect to="/" /> : <LoginPage />}
+        </Route>
+        
+        <Route path="/">
+          <ProtectedRoute component={HomePage} />
+        </Route>
+        
+        <Route path="/history">
+          <ProtectedRoute component={HistoryPage} />
+        </Route>
+        
+        <Route path="/profile">
+          <ProtectedRoute component={ProfilePage} />
+        </Route>
+        
+        <Route component={NotFound} />
+      </Switch>
+    </WebSocketProvider>
   );
 }
 
