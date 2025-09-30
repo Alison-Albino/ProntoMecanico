@@ -126,6 +126,15 @@ Preferred communication style: Simple, everyday language.
 - Directions API for route path rendering
 - API key configuration via environment variable (VITE_GOOGLE_MAPS_API_KEY)
 
+**GPS Precision System:**
+- Progressive accuracy improvement using `watchPosition` API
+- Rejects IP-based locations (requires <500m accuracy)
+- Real-time feedback: Precise (<30m), Good (30-100m), Acceptable (100-500m)
+- Automatic cleanup on dialog close and component unmount
+- Protection against memory leaks with ref-based watch/timeout management
+- Maximum 30-second timeout with up to 10 position readings
+- Guard against multiple simultaneous GPS requests
+
 ## External Dependencies
 
 ### Third-Party Services
