@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRoute, useLocation } from 'wouter';
-import { APIProvider, Map, AdvancedMarker, useMapsLibrary } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Textarea } from '@/components/ui/textarea';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+function RoutePolyline({ path }: { path: Array<{ lat: number; lng: number }> }) {
+  const map = useMap();
+  const polylineRef = useRef<google.maps.Polyline | null>(null);
+
+  useEffect(() => {
+    if (!map || path.length < 2) return;
+
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+    }
+
+    polylineRef.current = new google.maps.Polyline({
+      path: path,
+      geodesic: true,
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 4,
+      map: map,
+    });
+
+    return () => {
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+      }
+    };
+  }, [map, path]);
+
+  return null;
+}
 
 function ActiveRideContent({ requestId }: { requestId: string }) {
   const { user, token } = useAuth();
@@ -47,6 +77,15 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       loadDirections();
     }
   }, [serviceRequest, mechanicLocation, routesLibrary]);
+
+  useEffect(() => {
+    if (mechanicLocation && serviceRequest && user?.userType === 'client') {
+      const interval = setInterval(() => {
+        loadMechanicLocation(serviceRequest.mechanicId);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [mechanicLocation, serviceRequest, user]);
 
   const loadServiceRequest = async () => {
     try {
@@ -330,12 +369,14 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
           style={{ width: '100%', height: '100%' }}
           data-testid="map-active-ride"
         >
+          {routePath.length > 1 && <RoutePolyline path={routePath} />}
+
           {mechanicLocation && (
             <AdvancedMarker
               position={mechanicLocation}
               title="Mecânico"
             >
-              <div className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg">
+              <div className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg animate-pulse">
                 <Wrench className="w-6 h-6" />
               </div>
             </AdvancedMarker>
@@ -343,21 +384,12 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
           <AdvancedMarker
             position={clientLocation}
-            title="Cliente"
+            title="Local do Acionamento"
           >
             <div className="bg-destructive text-destructive-foreground p-3 rounded-full shadow-lg">
               <MapPin className="w-6 h-6" />
             </div>
           </AdvancedMarker>
-
-          {routePath.length > 1 && routePath.map((point, index) => (
-            <AdvancedMarker
-              key={index}
-              position={point}
-            >
-              <div className="w-1 h-1 bg-primary rounded-full opacity-70" />
-            </AdvancedMarker>
-          ))}
         </Map>
 
         <Card className="absolute top-4 left-4 right-4 shadow-lg">

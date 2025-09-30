@@ -16,13 +16,9 @@ import { Wrench, Truck, AlertCircle, MapPin, Loader2, Search } from 'lucide-reac
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 function AddressAutocomplete({ 
-  onPlaceSelect, 
-  value, 
-  onChange 
+  onPlaceSelect
 }: { 
   onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
-  value: string;
-  onChange: (value: string) => void;
 }) {
   const places = useMapsLibrary('places');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,13 +49,11 @@ function AddressAutocomplete({
 
   return (
     <div className="relative">
-      <Input
+      <input
         ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
         placeholder="Digite o endereço para o acionamento..."
         data-testid="input-address-autocomplete"
-        className="pr-10"
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       />
       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
     </div>
@@ -232,8 +226,6 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
             <Label htmlFor="address">Endereço do Acionamento</Label>
             <div className="space-y-2">
               <AddressAutocomplete
-                value={address}
-                onChange={setAddress}
                 onPlaceSelect={handlePlaceSelect}
               />
               <div className="flex items-center gap-2">
