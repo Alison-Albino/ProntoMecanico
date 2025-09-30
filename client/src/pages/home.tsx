@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useLocation } from 'wouter';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,8 @@ import { Wrench, Truck, AlertCircle, MapPin, Loader2 } from 'lucide-react';
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 export default function HomePage() {
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
+  const [, setLocation] = useLocation();
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [serviceType, setServiceType] = useState<string>('mechanic');
   const [description, setDescription] = useState('');
@@ -24,8 +26,36 @@ export default function HomePage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [nearbyMechanics, setNearbyMechanics] = useState<any[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  const [isOnline, setIsOnline] = useState(user?.isOnline || false);
   const { toast } = useToast();
+
+  const isOnline = user?.isOnline || false;
+
+  useEffect(() => {
+    const handleWebSocketMessage = (event: any) => {
+      const data = event.detail;
+      
+      if (data.type === 'service_request_accepted' && user?.userType === 'client') {
+        toast({
+          title: "Mecânico encontrado!",
+          description: `${data.mechanic.fullName} aceitou sua chamada`,
+        });
+        
+        setTimeout(() => {
+          setLocation(`/ride/${data.data.id}`);
+        }, 1500);
+      }
+      
+      if (data.type === 'mechanic_arrived') {
+        toast({
+          title: "Mecânico chegou!",
+          description: "O mecânico chegou no local",
+        });
+      }
+    };
+
+    window.addEventListener('websocket-message', handleWebSocketMessage);
+    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
+  }, [user, setLocation, toast]);
 
   useEffect(() => {
     getCurrentLocation();
@@ -40,16 +70,13 @@ export default function HomePage() {
   }, [user, token, isOnline]);
 
   useEffect(() => {
-    setIsOnline(user?.isOnline || false);
-  }, [user]);
-
-  useEffect(() => {
     if (user?.userType === 'client' && userLocation && token) {
       loadNearbyMechanics();
       const interval = setInterval(loadNearbyMechanics, 15000);
       return () => clearInterval(interval);
     }
   }, [user, userLocation, token]);
+
 
   const loadNearbyMechanics = async () => {
     if (!userLocation) return;
@@ -264,7 +291,7 @@ export default function HomePage() {
         description: `Chamada aceita! Valor total: R$ ${parseFloat(acceptedRequest.totalPrice).toFixed(2)}`,
       });
       
-      loadPendingRequests();
+      setLocation(`/ride/${requestId}`);
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -301,7 +328,7 @@ export default function HomePage() {
         throw new Error('Erro ao alterar status');
       }
 
-      setIsOnline(checked);
+      updateUser({ isOnline: checked });
       
       toast({
         title: checked ? "Online" : "Offline",
@@ -374,11 +401,12 @@ export default function HomePage() {
           <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
             <Map
               mapId="service-map"
-              defaultZoom={14}
+              defaultZoom={16}
               defaultCenter={userLocation}
               center={userLocation}
               gestureHandling="greedy"
               disableDefaultUI={false}
+              mapTypeId="roadmap"
               style={{ width: '100%', height: '100%' }}
               data-testid="map-container"
             >

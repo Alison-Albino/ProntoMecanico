@@ -12,6 +12,7 @@ import HomePage from "@/pages/home";
 import HistoryPage from "@/pages/history";
 import ProfilePage from "@/pages/profile";
 import WalletPage from "@/pages/wallet";
+import ActiveRidePage from "@/pages/active-ride";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element }) {
@@ -71,6 +72,10 @@ function Router() {
         
         <Route path="/profile">
           <ProtectedRoute component={ProfilePage} />
+        </Route>
+        
+        <Route path="/ride/:id">
+          <ProtectedRoute component={ActiveRidePage} />
         </Route>
         
         <Route component={NotFound} />

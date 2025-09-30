@@ -62,7 +62,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         ws.on('close', () => {
           clients.delete(user.id);
-          storage.updateUserOnlineStatus(user.id, false);
         });
 
         ws.on('message', (message) => {
@@ -292,6 +291,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/users/:id", authMiddleware, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   app.post("/api/service-requests/:id/accept", authMiddleware, async (req, res) => {
     try {
       if (req.user!.userType !== 'mechanic') {
@@ -368,6 +382,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/service-requests/:id/arrived", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos podem marcar chegada" });
+      }
+
+      const request = await storage.getServiceRequest(req.params.id);
+      
+      if (!request) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (request.mechanicId !== req.user!.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (request.status !== 'accepted') {
+        return res.status(400).json({ message: "Chamada não está em andamento" });
+      }
+
+      const updated = await storage.updateServiceRequest(req.params.id, {
+        status: 'arrived',
+        arrivedAt: new Date(),
+      });
+
+      broadcastToUser(request.clientId, {
+        type: 'mechanic_arrived',
+        data: updated,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   app.post("/api/service-requests/:id/complete", authMiddleware, async (req, res) => {
     try {
       const request = await storage.getServiceRequest(req.params.id);
@@ -378,6 +428,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (request.mechanicId !== req.user!.id) {
         return res.status(403).json({ message: "Apenas o mecânico responsável pode finalizar" });
+      }
+
+      if (request.status !== 'arrived' && request.status !== 'accepted') {
+        return res.status(400).json({ message: "Chamada não está em andamento" });
       }
 
       const updated = await storage.updateServiceRequest(req.params.id, {
