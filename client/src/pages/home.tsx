@@ -104,6 +104,33 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
   const [address, setAddress] = useState('');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const { toast } = useToast();
+  
+  const watchIdRef = useRef<number | null>(null);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup quando dialog fechar ou component desmontar
+  useEffect(() => {
+    const clearLocationWatch = () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+      setIsLoadingLocation(false);
+    };
+
+    if (!isOpen) {
+      clearLocationWatch();
+    }
+
+    // Cleanup ao desmontar component
+    return () => {
+      clearLocationWatch();
+    };
+  }, [isOpen]);
 
   const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
     if (place?.geometry?.location) {
@@ -130,11 +157,26 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
       return;
     }
 
+    if (isLoadingLocation) {
+      return; // Evita múltiplos watches simultâneos
+    }
+
     setIsLoadingLocation(true);
-    let watchId: number | null = null;
     let bestAccuracy = Infinity;
     let hasFoundLocation = false;
     let attempts = 0;
+
+    const stopWatch = () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
+      setIsLoadingLocation(false);
+    };
 
     const handlePosition = async (position: GeolocationPosition) => {
       const accuracy = position.coords.accuracy;
@@ -181,17 +223,13 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
               title: "✓ GPS Obtido",
               description: `Precisão: ${Math.round(accuracy)}m`,
             });
-            // Boa precisão, pode parar
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-            setIsLoadingLocation(false);
+            stopWatch();
           } else {
             toast({
               title: "✓ GPS Preciso!",
               description: `Localização definida com ${Math.round(accuracy)}m de precisão`,
             });
-            // Excelente precisão, para
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-            setIsLoadingLocation(false);
+            stopWatch();
           }
         } else {
           // Atualização de precisão
@@ -200,8 +238,7 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
               title: "✓ GPS Melhorado!",
               description: `Precisão agora: ${Math.round(accuracy)}m (excelente)`,
             });
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-            setIsLoadingLocation(false);
+            stopWatch();
           } else if (accuracy < 100) {
             toast({
               title: "GPS Melhorado",
@@ -211,9 +248,8 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
         }
         
         // Para após 10 leituras mesmo sem precisão ideal
-        if (attempts >= 10 && watchId) {
-          navigator.geolocation.clearWatch(watchId);
-          setIsLoadingLocation(false);
+        if (attempts >= 10) {
+          stopWatch();
           toast({
             title: "GPS Finalizado",
             description: `Melhor precisão obtida: ${Math.round(bestAccuracy)}m após ${attempts} tentativas`,
@@ -224,8 +260,7 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
 
     const handleError = (error: GeolocationPositionError) => {
       console.error('Geolocation error:', error);
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      setIsLoadingLocation(false);
+      stopWatch();
       
       let errorMessage = "Não foi possível obter GPS preciso";
       let errorTitle = "Erro GPS";
@@ -249,7 +284,7 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
     };
 
     // Usar watchPosition para melhorar precisão ao longo do tempo
-    watchId = navigator.geolocation.watchPosition(
+    watchIdRef.current = navigator.geolocation.watchPosition(
       handlePosition,
       handleError,
       {
@@ -260,10 +295,9 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
     );
 
     // Timeout de segurança: para após 30 segundos
-    setTimeout(() => {
-      if (watchId && isLoadingLocation) {
-        navigator.geolocation.clearWatch(watchId);
-        setIsLoadingLocation(false);
+    timeoutIdRef.current = setTimeout(() => {
+      if (watchIdRef.current !== null) {
+        stopWatch();
         
         if (hasFoundLocation) {
           toast({
