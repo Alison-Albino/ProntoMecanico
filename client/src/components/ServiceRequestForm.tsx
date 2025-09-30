@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MapPin, Wrench, Phone, AlertCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { MapPin, Wrench, Phone, AlertCircle, Search, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useMapsLibrary } from "@vis.gl/react-google-maps";
+import { useToast } from "@/hooks/use-toast";
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 interface ServiceRequestFormProps {
   onSubmit: (requestData: ServiceRequestData) => void;
@@ -23,6 +27,59 @@ export interface ServiceRequestData {
   contactPhone: string;
 }
 
+function AddressAutocomplete({ 
+  value,
+  onAddressChange,
+  placeholder = "Digite o endereço..."
+}: { 
+  value: string;
+  onAddressChange: (address: string) => void;
+  placeholder?: string;
+}) {
+  const places = useMapsLibrary('places');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      types: ['address'],
+    };
+
+    autocompleteRef.current = new places.Autocomplete(inputRef.current, options);
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current?.getPlace();
+      if (place?.formatted_address) {
+        onAddressChange(place.formatted_address);
+      }
+    });
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [places, onAddressChange]);
+
+  return (
+    <div className="relative flex-1">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => onAddressChange(e.target.value)}
+        placeholder={placeholder}
+        data-testid="input-address-autocomplete"
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
+
 export function ServiceRequestForm({ onSubmit, onCancel }: ServiceRequestFormProps) {
   const [formData, setFormData] = useState<ServiceRequestData>({
     serviceType: "mechanic",
@@ -35,6 +92,8 @@ export function ServiceRequestForm({ onSubmit, onCancel }: ServiceRequestFormPro
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,10 +114,75 @@ export function ServiceRequestForm({ onSubmit, onCancel }: ServiceRequestFormPro
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const reverseGeocode = async (lat: number, lng: number) => {
+    if (!GOOGLE_MAPS_API_KEY) return;
+    
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        handleInputChange("fromAddress", data.results[0].formatted_address);
+      }
+    } catch (error) {
+      console.error('Erro ao obter endereço:', error);
+    }
+  };
+
   const getCurrentLocation = () => {
-    // TODO: Integrate with geolocation API
-    console.log("Getting current location");
-    handleInputChange("fromAddress", "Sua localização atual (GPS)");
+    if (!navigator.geolocation) {
+      toast({
+        title: "GPS não disponível",
+        description: "Seu navegador não suporta geolocalização",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        
+        await reverseGeocode(location.lat, location.lng);
+        
+        toast({
+          title: "Localização obtida",
+          description: "Sua localização foi identificada com sucesso",
+        });
+        
+        setIsLoadingLocation(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        setIsLoadingLocation(false);
+        
+        let errorMessage = "Não foi possível obter sua localização";
+        if (error.code === 1) {
+          errorMessage = "Permissão de localização negada. Digite o endereço manualmente.";
+        } else if (error.code === 2) {
+          errorMessage = "Localização indisponível. Digite o endereço manualmente.";
+        } else if (error.code === 3) {
+          errorMessage = "Tempo esgotado. Digite o endereço manualmente.";
+        }
+        
+        toast({
+          title: "Erro de localização",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   };
 
   const serviceTypes = [
@@ -136,22 +260,23 @@ export function ServiceRequestForm({ onSubmit, onCancel }: ServiceRequestFormPro
           <div>
             <Label htmlFor="fromAddress">Local Atual</Label>
             <div className="flex space-x-2 mt-1">
-              <Input
-                id="fromAddress"
+              <AddressAutocomplete
                 value={formData.fromAddress}
-                onChange={(e) => handleInputChange("fromAddress", e.target.value)}
+                onAddressChange={(address) => handleInputChange("fromAddress", address)}
                 placeholder="Digite o endereço ou use GPS"
-                required
-                data-testid="input-from-address"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={getCurrentLocation}
-                data-testid="get-location"
+                disabled={isLoadingLocation}
+                data-testid="button-get-location"
               >
-                <MapPin className="h-4 w-4" />
-                GPS
+                {isLoadingLocation ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MapPin className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
@@ -169,11 +294,10 @@ export function ServiceRequestForm({ onSubmit, onCancel }: ServiceRequestFormPro
             </div>
             
             {formData.needsDestination && (
-              <Input
+              <AddressAutocomplete
                 value={formData.toAddress || ""}
-                onChange={(e) => handleInputChange("toAddress", e.target.value)}
-                placeholder="Endereço de destino"
-                data-testid="input-to-address"
+                onAddressChange={(address) => handleInputChange("toAddress", address)}
+                placeholder="Digite o endereço de destino"
               />
             )}
           </div>

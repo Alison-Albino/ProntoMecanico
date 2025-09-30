@@ -17,13 +17,22 @@ import { fetchWithAuth } from '@/lib/fetch-with-auth';
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 function AddressAutocomplete({ 
-  onPlaceSelect
+  onPlaceSelect,
+  value
 }: { 
   onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
+  value?: string;
 }) {
   const places = useMapsLibrary('places');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [inputValue, setInputValue] = useState(value || '');
+
+  useEffect(() => {
+    if (value !== undefined) {
+      setInputValue(value);
+    }
+  }, [value]);
 
   useEffect(() => {
     if (!places || !inputRef.current) return;
@@ -38,6 +47,9 @@ function AddressAutocomplete({
 
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
+      if (place?.formatted_address) {
+        setInputValue(place.formatted_address);
+      }
       onPlaceSelect(place || null);
     });
 
@@ -49,12 +61,15 @@ function AddressAutocomplete({
   }, [places, onPlaceSelect]);
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ zIndex: 10 }}>
       <input
         ref={inputRef}
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
         placeholder="Digite o endereço para o acionamento..."
         data-testid="input-address-autocomplete"
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        autoComplete="off"
+        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       />
       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
     </div>
@@ -227,6 +242,7 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
             <div className="space-y-2">
               <AddressAutocomplete
                 onPlaceSelect={handlePlaceSelect}
+                value={address}
               />
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-px bg-border"></div>
@@ -537,7 +553,7 @@ export default function HomePage() {
   }
 
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={["places"]}>
       <div className="h-full flex flex-col">
         {user?.userType === 'mechanic' && (
           <div className="bg-card border-b p-4">
