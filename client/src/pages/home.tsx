@@ -26,11 +26,11 @@ function AddressAutocomplete({
   const places = useMapsLibrary('places');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [inputValue, setInputValue] = useState(value || '');
 
+  // Sync external value changes (like from GPS) to the input
   useEffect(() => {
-    if (value !== undefined) {
-      setInputValue(value);
+    if (inputRef.current && value !== undefined && value !== inputRef.current.value) {
+      inputRef.current.value = value;
     }
   }, [value]);
 
@@ -47,9 +47,6 @@ function AddressAutocomplete({
 
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
-      if (place?.formatted_address) {
-        setInputValue(place.formatted_address);
-      }
       onPlaceSelect(place || null);
     });
 
@@ -64,8 +61,7 @@ function AddressAutocomplete({
     <div className="relative" style={{ zIndex: 10 }}>
       <input
         ref={inputRef}
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
+        defaultValue={value || ''}
         placeholder="Digite o endereço para o acionamento..."
         data-testid="input-address-autocomplete"
         autoComplete="off"

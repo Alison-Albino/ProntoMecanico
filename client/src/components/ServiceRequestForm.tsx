@@ -40,6 +40,13 @@ function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
+  // Sync external value changes (like from GPS) to the input
+  useEffect(() => {
+    if (inputRef.current && value !== undefined && value !== inputRef.current.value) {
+      inputRef.current.value = value;
+    }
+  }, [value]);
+
   useEffect(() => {
     if (!places || !inputRef.current) return;
 
@@ -58,9 +65,21 @@ function AddressAutocomplete({
       }
     });
 
+    // Also sync manual typing to parent state
+    const handleInput = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      onAddressChange(target.value);
+    };
+    
+    inputRef.current.addEventListener('input', handleInput);
+    const currentInput = inputRef.current;
+
     return () => {
       if (autocompleteRef.current) {
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+      if (currentInput) {
+        currentInput.removeEventListener('input', handleInput);
       }
     };
   }, [places, onAddressChange]);
@@ -69,11 +88,11 @@ function AddressAutocomplete({
     <div className="relative flex-1">
       <input
         ref={inputRef}
-        value={value}
-        onChange={(e) => onAddressChange(e.target.value)}
+        defaultValue={value || ''}
         placeholder={placeholder}
         data-testid="input-address-autocomplete"
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        autoComplete="off"
+        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       />
       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
     </div>
