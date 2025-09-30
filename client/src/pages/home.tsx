@@ -59,15 +59,17 @@ function AddressAutocomplete({
 
   return (
     <div className="relative" style={{ zIndex: 10 }}>
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center pointer-events-none">
+        <MapPin className="w-3 h-3 text-primary" />
+      </div>
       <input
         ref={inputRef}
         defaultValue={value || ''}
-        placeholder="Digite o endereço para o acionamento..."
+        placeholder="Para onde você precisa do serviço?"
         data-testid="input-address-autocomplete"
         autoComplete="off"
-        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-11 w-full rounded-lg border border-input bg-background pl-11 pr-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
     </div>
   );
 }
@@ -215,14 +217,14 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
           Solicitar Serviço
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Nova Solicitação</DialogTitle>
+          <DialogTitle className="text-xl">Solicitar Serviço</DialogTitle>
           <DialogDescription>
-            Preencha os dados para solicitar um serviço
+            Informe o local e detalhes do seu problema
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 mt-2">
           <div>
             <Label>Tipo de Serviço</Label>
             <Select value={serviceType} onValueChange={setServiceType}>
@@ -238,74 +240,102 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="address">Endereço do Acionamento</Label>
-            <div className="space-y-2">
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Local do Acionamento</Label>
               <AddressAutocomplete
                 onPlaceSelect={handlePlaceSelect}
                 value={address}
               />
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-border"></div>
-                <span className="text-xs text-muted-foreground">ou</span>
-                <div className="flex-1 h-px bg-border"></div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={getCurrentLocation}
-                disabled={isLoadingLocation}
-                data-testid="button-get-location"
-                className="w-full"
-              >
-                {isLoadingLocation ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Obtendo localização...
-                  </>
-                ) : (
-                  <>
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Usar Minha Localização Atual (GPS)
-                  </>
-                )}
-              </Button>
             </div>
-            {userLocation && (
-              <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
-                <p className="text-xs text-green-800 dark:text-green-200 font-medium">
-                  ✓ Localização definida
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                  {address || `Lat: ${userLocation.lat.toFixed(6)}, Lng: ${userLocation.lng.toFixed(6)}`}
-                </p>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-background px-2 text-muted-foreground">ou use o GPS</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant={userLocation ? "default" : "outline"}
+              onClick={getCurrentLocation}
+              disabled={isLoadingLocation}
+              data-testid="button-get-location"
+              className="w-full h-11"
+            >
+              {isLoadingLocation ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Obtendo localização precisa...
+                </>
+              ) : userLocation ? (
+                <>
+                  <MapPin className="w-4 h-4 mr-2 fill-current" />
+                  Localização GPS Definida
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-4 h-4 mr-2" />
+                  Usar Minha Localização GPS
+                </>
+              )}
+            </Button>
+
+            {userLocation && address && (
+              <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5 w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {address}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Coordenadas: {userLocation.lat.toFixed(6)}, {userLocation.lng.toFixed(6)}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
           <div>
-            <Label htmlFor="description">Descrição do Problema</Label>
+            <Label htmlFor="description" className="text-sm font-medium mb-2 block">
+              Descrição do Problema (opcional)
+            </Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               data-testid="input-description"
-              placeholder="Descreva o problema (opcional)"
+              placeholder="Ex: Pneu furado, bateria descarregada, motor não liga..."
+              className="min-h-20 resize-none"
             />
           </div>
 
-          <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-            <p className="font-semibold mb-1">Valores:</p>
-            <p>• Taxa de acionamento: R$ 50,00</p>
-            <p>• Taxa por km rodado: R$ 6,00/km</p>
+          <div className="bg-muted/50 border border-border/50 p-3 rounded-lg space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Valores do Serviço</p>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Taxa de acionamento</span>
+              <span className="text-sm font-semibold">R$ 50,00</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Por km rodado</span>
+              <span className="text-sm font-semibold">R$ 6,00/km</span>
+            </div>
           </div>
 
           <Button 
             onClick={handleCreateRequest} 
-            className="w-full"
+            className="w-full h-11 font-semibold"
+            size="lg"
             data-testid="button-submit-request"
           >
-            Solicitar
+            Continuar para Pagamento
           </Button>
         </div>
       </DialogContent>
@@ -413,9 +443,9 @@ export default function HomePage() {
           console.error('Geolocation error:', error);
         },
         {
-          enableHighAccuracy: false,
-          timeout: 5000,
-          maximumAge: 300000
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     }
