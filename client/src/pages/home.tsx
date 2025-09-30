@@ -206,7 +206,12 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="lg" data-testid="button-new-request">
+        <Button 
+          size="lg" 
+          data-testid="button-new-request"
+          className="bg-gradient-to-r from-primary to-blue-600 text-primary-foreground shadow-lg transition-shadow duration-300 font-semibold rounded-full hover-elevate active-elevate-2 px-6"
+        >
+          <Wrench className="w-5 h-5 mr-2" />
           Solicitar Serviço
         </Button>
       </DialogTrigger>
@@ -657,7 +662,7 @@ export default function HomePage() {
           )}
 
           {user?.userType === 'client' && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10">
               <RequestDialog 
                 isOpen={isRequestDialogOpen} 
                 onOpenChange={setIsRequestDialogOpen} 
