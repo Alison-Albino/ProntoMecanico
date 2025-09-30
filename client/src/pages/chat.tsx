@@ -40,6 +40,12 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
     enabled: !!token && !!otherUserId,
   });
 
+  useEffect(() => {
+    if (otherUserId) {
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${otherUserId}`] });
+    }
+  }, [otherUserId]);
+
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
       return await apiRequest('POST', '/api/chat/messages', {

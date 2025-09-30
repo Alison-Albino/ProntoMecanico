@@ -106,9 +106,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
-      const { password, ...userWithoutPassword } = user;
+      if (user.userType === 'mechanic') {
+        await storage.updateUserOnlineStatus(user.id, true);
+      }
+
+      const updatedUser = await storage.getUser(user.id);
+      const finalUser = updatedUser || user;
+
+      const { password, ...userWithoutPassword } = finalUser;
       const token = generateSessionToken();
-      sessions.set(token, user);
+      sessions.set(token, finalUser);
 
       res.json({ user: userWithoutPassword, token });
     } catch (error: any) {
@@ -130,9 +137,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário ou senha inválidos" });
       }
 
-      const { password, ...userWithoutPassword } = user;
+      if (user.userType === 'mechanic') {
+        await storage.updateUserOnlineStatus(user.id, true);
+      }
+
+      const updatedUser = await storage.getUser(user.id);
+      const finalUser = updatedUser || user;
+
+      const { password, ...userWithoutPassword } = finalUser;
       const token = generateSessionToken();
-      sessions.set(token, user);
+      sessions.set(token, finalUser);
 
       res.json({ user: userWithoutPassword, token });
     } catch (error: any) {
