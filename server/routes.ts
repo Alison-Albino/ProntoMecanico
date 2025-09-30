@@ -601,15 +601,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/payments/prepare-payment", authMiddleware, async (req, res) => {
     try {
-      const { amount, description } = req.body;
-
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ message: "Valor inválido" });
-      }
+      const { serviceType, pickupAddress } = req.body;
+      
+      const BASE_FEE = 50;
+      const amount = BASE_FEE;
+      const description = `Pré-pagamento: ${serviceType || 'Serviço de mecânico'} - ${pickupAddress || 'Localização'}`;
 
       const paymentIntent = await createPaymentIntent(
-        parseFloat(amount),
-        description || 'Serviço de mecânico'
+        amount,
+        description
       );
 
       res.json({ 
