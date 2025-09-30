@@ -562,6 +562,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const message = await storage.createChatMessage(validatedData);
+      
+      const messageWithSender = {
+        ...message,
+        senderName: req.user!.fullName,
+      };
 
       const recipientId = serviceRequest.clientId === req.user!.id 
         ? serviceRequest.mechanicId 
@@ -570,11 +575,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (recipientId) {
         broadcastToUser(recipientId, {
           type: 'new_chat_message',
-          data: message,
+          data: messageWithSender,
         });
       }
 
-      res.json(message);
+      res.json(messageWithSender);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -593,7 +598,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const messages = await storage.getChatMessages(req.params.serviceRequestId);
-      res.json(messages);
+      
+      const messagesWithSender = await Promise.all(messages.map(async (msg: any) => {
+        const sender = await storage.getUser(msg.senderId);
+        return {
+          ...msg,
+          senderName: sender?.fullName || 'Usuário',
+        };
+      }));
+      
+      res.json(messagesWithSender);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

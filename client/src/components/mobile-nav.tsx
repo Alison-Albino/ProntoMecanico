@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth-context';
-import { Home, History, User, Wallet, Navigation } from 'lucide-react';
+import { Home, History, User, Wallet, Navigation, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 export function MobileNav() {
@@ -24,7 +24,7 @@ export function MobileNav() {
     ? [
         { path: '/', icon: Home, label: 'Início' },
         { path: `/ride/${activeRequest.id}`, icon: Navigation, label: 'Corrida' },
-        { path: '/history', icon: History, label: 'Histórico' },
+        { path: `/ride/${activeRequest.id}/chat`, icon: MessageCircle, label: 'Chat' },
         { path: '/profile', icon: User, label: 'Perfil' },
       ]
     : baseNavItems;
