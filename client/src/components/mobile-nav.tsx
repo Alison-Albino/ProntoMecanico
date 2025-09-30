@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'wouter';
-import { Home, History, User } from 'lucide-react';
+import { Home, History, User, Wallet } from 'lucide-react';
 
 export function MobileNav() {
   const [location] = useLocation();
@@ -7,6 +7,7 @@ export function MobileNav() {
   const navItems = [
     { path: '/', icon: Home, label: 'Início' },
     { path: '/history', icon: History, label: 'Histórico' },
+    { path: '/wallet', icon: Wallet, label: 'Carteira' },
     { path: '/profile', icon: User, label: 'Perfil' },
   ];
 

@@ -6,6 +6,8 @@ import {
   loginSchema, 
   insertServiceRequestSchema,
   insertChatMessageSchema,
+  bankDataSchema,
+  ratingSchema,
   type User 
 } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -206,6 +208,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/mechanics/nearby", authMiddleware, async (req, res) => {
+    try {
+      const { lat, lng, radius = 10 } = req.query;
+      
+      if (!lat || !lng) {
+        return res.status(400).json({ message: "Latitude e longitude são obrigatórias" });
+      }
+
+      const mechanics = await storage.getOnlineMechanicsNearby(
+        parseFloat(lat as string),
+        parseFloat(lng as string),
+        parseFloat(radius as string)
+      );
+      
+      const mechanicsWithoutPassword = mechanics.map(({ password, ...m }) => m);
+      res.json(mechanicsWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   app.post("/api/service-requests", authMiddleware, async (req, res) => {
     try {
       const validatedData = insertServiceRequestSchema.parse({
@@ -291,19 +314,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { distance } = req.body;
       const distanceFee = distance * 6;
-      const totalPrice = 50 + distanceFee;
+      const baseFee = 50;
+      const totalPrice = baseFee + distanceFee;
+      const platformFee = totalPrice * 0.10;
+      const mechanicEarnings = totalPrice - platformFee;
 
       const updated = await storage.updateServiceRequest(req.params.id, {
         mechanicId: req.user!.id,
         status: 'accepted',
         acceptedAt: new Date(),
         distance: distance.toString(),
+        baseFee: baseFee.toString(),
         distanceFee: distanceFee.toString(),
         totalPrice: totalPrice.toString(),
+        platformFee: platformFee.toString(),
+        mechanicEarnings: mechanicEarnings.toString(),
+        paymentStatus: 'paid',
       });
+
+      if (!updated) {
+        return res.status(404).json({ message: "Erro ao atualizar chamada" });
+      }
+
+      await storage.updateWalletBalance(req.user!.id, mechanicEarnings);
+
+      await storage.createTransaction(
+        req.user!.id,
+        'earning',
+        mechanicEarnings,
+        `Ganho do serviço - ${updated.serviceType} (Distância: ${distance.toFixed(1)}km)`,
+        req.params.id
+      );
 
       broadcastToUser(request.clientId, {
         type: 'service_request_accepted',
+        data: updated,
+        mechanic: {
+          id: req.user!.id,
+          fullName: req.user!.fullName,
+          rating: req.user!.rating,
+          phone: req.user!.phone,
+        },
+      });
+
+      broadcastToUser(req.user!.id, {
+        type: 'service_request_started',
         data: updated,
       });
 
@@ -458,6 +513,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         res.json({ status: paymentIntent.status });
       }
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/wallet/transactions", authMiddleware, async (req, res) => {
+    try {
+      const transactions = await storage.getUserTransactions(req.user!.id);
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wallet/bank-data", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos podem adicionar dados bancários" });
+      }
+
+      const validatedData = bankDataSchema.parse(req.body);
+      await storage.updateUserBankData(req.user!.id, validatedData);
+
+      res.json({ message: "Dados bancários atualizados" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/wallet/withdraw", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos podem solicitar saque" });
+      }
+
+      const user = await storage.getUser(req.user!.id);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      if (!user.bankAccountName || !user.bankAccountNumber || !user.bankName) {
+        return res.status(400).json({ message: "Complete seus dados bancários primeiro" });
+      }
+
+      const balance = parseFloat(user.walletBalance || "0");
+      if (balance <= 0) {
+        return res.status(400).json({ message: "Saldo insuficiente" });
+      }
+
+      await storage.createTransaction(
+        user.id,
+        'withdrawal',
+        balance,
+        `Saque para ${user.bankName} - ${user.bankAccountNumber}`
+      );
+
+      await storage.updateWalletBalance(user.id, -balance);
+
+      res.json({ message: "Saque solicitado com sucesso" });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

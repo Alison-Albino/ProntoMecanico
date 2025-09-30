@@ -22,6 +22,7 @@ export default function HomePage() {
   const [address, setAddress] = useState('');
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [nearbyMechanics, setNearbyMechanics] = useState<any[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isOnline, setIsOnline] = useState(user?.isOnline || false);
   const { toast } = useToast();
@@ -41,6 +42,36 @@ export default function HomePage() {
   useEffect(() => {
     setIsOnline(user?.isOnline || false);
   }, [user]);
+
+  useEffect(() => {
+    if (user?.userType === 'client' && userLocation && token) {
+      loadNearbyMechanics();
+      const interval = setInterval(loadNearbyMechanics, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [user, userLocation, token]);
+
+  const loadNearbyMechanics = async () => {
+    if (!userLocation) return;
+    
+    try {
+      const response = await fetch(
+        `/api/mechanics/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=20`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const mechanics = await response.json();
+        setNearbyMechanics(mechanics);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mecânicos:', error);
+    }
+  };
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -351,16 +382,41 @@ export default function HomePage() {
               style={{ width: '100%', height: '100%' }}
               data-testid="map-container"
             >
-              <AdvancedMarker position={userLocation} />
+              <AdvancedMarker 
+                position={userLocation}
+                title={user?.userType === 'client' ? 'Sua localização' : 'Você'}
+              />
               
-              {pendingRequests.map((request) => (
+              {user?.userType === 'client' && nearbyMechanics.map((mechanic) => (
+                mechanic.currentLat && mechanic.currentLng && (
+                  <AdvancedMarker
+                    key={mechanic.id}
+                    position={{
+                      lat: parseFloat(mechanic.currentLat),
+                      lng: parseFloat(mechanic.currentLng),
+                    }}
+                    title={`${mechanic.fullName} - ⭐ ${parseFloat(mechanic.rating || '5').toFixed(1)}`}
+                  >
+                    <div className="bg-primary text-primary-foreground p-2 rounded-full shadow-lg">
+                      <Wrench className="w-5 h-5" />
+                    </div>
+                  </AdvancedMarker>
+                )
+              ))}
+              
+              {user?.userType === 'mechanic' && pendingRequests.map((request) => (
                 <AdvancedMarker
                   key={request.id}
                   position={{
                     lat: parseFloat(request.pickupLat),
                     lng: parseFloat(request.pickupLng),
                   }}
-                />
+                  title={`Chamada - ${request.serviceType}`}
+                >
+                  <div className="bg-destructive text-destructive-foreground p-2 rounded-full shadow-lg animate-pulse">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                </AdvancedMarker>
               ))}
             </Map>
           </APIProvider>
@@ -375,6 +431,22 @@ export default function HomePage() {
                 <Button onClick={getCurrentLocation} variant="outline" size="sm">
                   Tentar Novamente
                 </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {user?.userType === 'client' && nearbyMechanics.length > 0 && (
+          <div className="absolute top-4 left-4 z-10">
+            <Card className="shadow-lg">
+              <CardContent className="p-3 flex items-center gap-2">
+                <div className="bg-green-100 p-2 rounded-full">
+                  <Wrench className="w-4 h-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} online</p>
+                  <p className="text-xs text-muted-foreground">Próximos a você</p>
+                </div>
               </CardContent>
             </Card>
           </div>

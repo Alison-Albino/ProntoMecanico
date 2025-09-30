@@ -11,6 +11,7 @@ import LoginPage from "@/pages/login";
 import HomePage from "@/pages/home";
 import HistoryPage from "@/pages/history";
 import ProfilePage from "@/pages/profile";
+import WalletPage from "@/pages/wallet";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element }) {
@@ -62,6 +63,10 @@ function Router() {
         
         <Route path="/history">
           <ProtectedRoute component={HistoryPage} />
+        </Route>
+        
+        <Route path="/wallet">
+          <ProtectedRoute component={WalletPage} />
         </Route>
         
         <Route path="/profile">
