@@ -4,7 +4,9 @@ import {
   type ServiceRequest,
   type InsertServiceRequest,
   type ChatMessage,
-  type InsertChatMessage
+  type InsertChatMessage,
+  type Transaction,
+  type BankData
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -15,27 +17,38 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserLocation(userId: string, lat: number, lng: number): Promise<void>;
   updateUserOnlineStatus(userId: string, isOnline: boolean): Promise<void>;
+  updateUserBankData(userId: string, bankData: BankData): Promise<void>;
+  updateUserRating(userId: string, rating: number): Promise<void>;
+  updateWalletBalance(userId: string, amount: number): Promise<void>;
   getOnlineMechanics(): Promise<User[]>;
+  getOnlineMechanicsNearby(lat: number, lng: number, radiusKm: number): Promise<User[]>;
   
   createServiceRequest(request: InsertServiceRequest): Promise<ServiceRequest>;
   getServiceRequest(id: string): Promise<ServiceRequest | undefined>;
   getUserServiceRequests(userId: string): Promise<ServiceRequest[]>;
   getPendingServiceRequests(): Promise<ServiceRequest[]>;
+  getActiveServiceRequest(userId: string): Promise<ServiceRequest | undefined>;
   updateServiceRequest(id: string, data: Partial<ServiceRequest>): Promise<ServiceRequest | undefined>;
   
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessages(serviceRequestId: string): Promise<ChatMessage[]>;
+  
+  createTransaction(userId: string, type: string, amount: number, description: string, serviceRequestId?: string): Promise<Transaction>;
+  getUserTransactions(userId: string): Promise<Transaction[]>;
+  updateTransactionStatus(id: string, status: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private serviceRequests: Map<string, ServiceRequest>;
   private chatMessages: Map<string, ChatMessage>;
+  private transactions: Map<string, Transaction>;
 
   constructor() {
     this.users = new Map();
     this.serviceRequests = new Map();
     this.chatMessages = new Map();
+    this.transactions = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -62,6 +75,15 @@ export class MemStorage implements IStorage {
       isOnline: false,
       currentLat: null,
       currentLng: null,
+      rating: "5.00",
+      totalRatings: 0,
+      bankAccountName: null,
+      bankAccountNumber: null,
+      bankName: null,
+      bankBranch: null,
+      pixKey: null,
+      walletBalance: "0.00",
+      stripeCustomerId: null,
       createdAt: new Date()
     };
     this.users.set(id, user);
@@ -85,10 +107,70 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async updateUserBankData(userId: string, bankData: BankData): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.bankAccountName = bankData.bankAccountName;
+      user.bankAccountNumber = bankData.bankAccountNumber;
+      user.bankName = bankData.bankName;
+      user.bankBranch = bankData.bankBranch || null;
+      user.pixKey = bankData.pixKey || null;
+      this.users.set(userId, user);
+    }
+  }
+
+  async updateUserRating(userId: string, newRating: number): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      const currentRating = parseFloat(user.rating || "5");
+      const totalRatings = user.totalRatings || 0;
+      const newTotalRatings = totalRatings + 1;
+      const calculatedRating = ((currentRating * totalRatings) + newRating) / newTotalRatings;
+      
+      user.rating = calculatedRating.toFixed(2);
+      user.totalRatings = newTotalRatings;
+      this.users.set(userId, user);
+    }
+  }
+
+  async updateWalletBalance(userId: string, amount: number): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      const currentBalance = parseFloat(user.walletBalance || "0");
+      user.walletBalance = (currentBalance + amount).toFixed(2);
+      this.users.set(userId, user);
+    }
+  }
+
   async getOnlineMechanics(): Promise<User[]> {
     return Array.from(this.users.values()).filter(
       (user) => user.userType === "mechanic" && user.isOnline,
     );
+  }
+
+  async getOnlineMechanicsNearby(lat: number, lng: number, radiusKm: number): Promise<User[]> {
+    const mechanics = await this.getOnlineMechanics();
+    return mechanics.filter(mechanic => {
+      if (!mechanic.currentLat || !mechanic.currentLng) return false;
+      
+      const mechanicLat = parseFloat(mechanic.currentLat);
+      const mechanicLng = parseFloat(mechanic.currentLng);
+      const distance = this.calculateDistance(lat, lng, mechanicLat, mechanicLng);
+      
+      return distance <= radiusKm;
+    });
+  }
+
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
 
   async createServiceRequest(insertRequest: InsertServiceRequest): Promise<ServiceRequest> {
@@ -103,11 +185,16 @@ export class MemStorage implements IStorage {
       baseFee: "50.00",
       distanceFee: null,
       totalPrice: null,
+      platformFee: null,
+      mechanicEarnings: null,
       paymentStatus: "pending",
       paymentIntentId: null,
+      rating: null,
+      ratingComment: null,
       createdAt: new Date(),
       acceptedAt: null,
       completedAt: null,
+      arrivedAt: null,
     };
     this.serviceRequests.set(id, request);
     return request;
@@ -126,6 +213,14 @@ export class MemStorage implements IStorage {
   async getPendingServiceRequests(): Promise<ServiceRequest[]> {
     return Array.from(this.serviceRequests.values()).filter(
       (request) => request.status === "pending",
+    );
+  }
+
+  async getActiveServiceRequest(userId: string): Promise<ServiceRequest | undefined> {
+    return Array.from(this.serviceRequests.values()).find(
+      (request) => 
+        (request.clientId === userId || request.mechanicId === userId) &&
+        (request.status === "accepted" || request.status === "in_progress")
     );
   }
 
@@ -158,6 +253,46 @@ export class MemStorage implements IStorage {
         const bTime = b.createdAt?.getTime() ?? 0;
         return aTime - bTime;
       });
+  }
+
+  async createTransaction(
+    userId: string, 
+    type: string, 
+    amount: number, 
+    description: string, 
+    serviceRequestId?: string
+  ): Promise<Transaction> {
+    const id = randomUUID();
+    const transaction: Transaction = {
+      id,
+      userId,
+      serviceRequestId: serviceRequestId || null,
+      type,
+      amount: amount.toFixed(2),
+      status: "completed",
+      description,
+      createdAt: new Date(),
+    };
+    this.transactions.set(id, transaction);
+    return transaction;
+  }
+
+  async getUserTransactions(userId: string): Promise<Transaction[]> {
+    return Array.from(this.transactions.values())
+      .filter(t => t.userId === userId)
+      .sort((a, b) => {
+        const aTime = a.createdAt?.getTime() ?? 0;
+        const bTime = b.createdAt?.getTime() ?? 0;
+        return bTime - aTime;
+      });
+  }
+
+  async updateTransactionStatus(id: string, status: string): Promise<void> {
+    const transaction = this.transactions.get(id);
+    if (transaction) {
+      transaction.status = status;
+      this.transactions.set(id, transaction);
+    }
   }
 }
 
