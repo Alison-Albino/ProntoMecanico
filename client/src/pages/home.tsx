@@ -131,27 +131,25 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
     }
 
     setIsLoadingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const accuracy = position.coords.accuracy;
-        
-        // REJEITAR localização via IP/rede (geralmente > 1000m de precisão)
-        if (accuracy > 500) {
-          setIsLoadingLocation(false);
-          toast({
-            title: "GPS Impreciso Rejeitado",
-            description: `Precisão muito baixa (${Math.round(accuracy)}m). Isso parece localização por IP. Ative o GPS e tente em local aberto.`,
-            variant: "destructive",
-          });
-          return;
-        }
+    let watchId: number | null = null;
+    let bestAccuracy = Infinity;
+    let hasFoundLocation = false;
+    let attempts = 0;
+
+    const handlePosition = async (position: GeolocationPosition) => {
+      const accuracy = position.coords.accuracy;
+      attempts++;
+      
+      // Se a precisão está melhorando, atualiza
+      if (accuracy < bestAccuracy) {
+        bestAccuracy = accuracy;
         
         const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
-        setUserLocation(location);
         
+        setUserLocation(location);
         await reverseGeocode(location.lat, location.lng);
         
         if (token) {
@@ -164,56 +162,123 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
           }).catch(console.error);
         }
         
+        // Primeira localização encontrada
+        if (!hasFoundLocation) {
+          hasFoundLocation = true;
+          
+          if (accuracy > 500) {
+            toast({
+              title: "Localização Imprecisa Obtida",
+              description: `Precisão: ${Math.round(accuracy)}m (pode ser rede). Continuando busca por GPS real...`,
+            });
+          } else if (accuracy > 100) {
+            toast({
+              title: "GPS Obtido - Refinando",
+              description: `Precisão atual: ${Math.round(accuracy)}m. Buscando melhor sinal...`,
+            });
+          } else if (accuracy > 30) {
+            toast({
+              title: "✓ GPS Obtido",
+              description: `Precisão: ${Math.round(accuracy)}m`,
+            });
+            // Boa precisão, pode parar
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            setIsLoadingLocation(false);
+          } else {
+            toast({
+              title: "✓ GPS Preciso!",
+              description: `Localização definida com ${Math.round(accuracy)}m de precisão`,
+            });
+            // Excelente precisão, para
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            setIsLoadingLocation(false);
+          }
+        } else {
+          // Atualização de precisão
+          if (accuracy <= 30) {
+            toast({
+              title: "✓ GPS Melhorado!",
+              description: `Precisão agora: ${Math.round(accuracy)}m (excelente)`,
+            });
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            setIsLoadingLocation(false);
+          } else if (accuracy < 100) {
+            toast({
+              title: "GPS Melhorado",
+              description: `Precisão agora: ${Math.round(accuracy)}m`,
+            });
+          }
+        }
+        
+        // Para após 10 leituras mesmo sem precisão ideal
+        if (attempts >= 10 && watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          setIsLoadingLocation(false);
+          toast({
+            title: "GPS Finalizado",
+            description: `Melhor precisão obtida: ${Math.round(bestAccuracy)}m após ${attempts} tentativas`,
+          });
+        }
+      }
+    };
+
+    const handleError = (error: GeolocationPositionError) => {
+      console.error('Geolocation error:', error);
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      setIsLoadingLocation(false);
+      
+      let errorMessage = "Não foi possível obter GPS preciso";
+      let errorTitle = "Erro GPS";
+      
+      if (error.code === 1) {
+        errorTitle = "Permissão Negada";
+        errorMessage = "Por favor, autorize o acesso à localização nas configurações do navegador e recarregue a página.";
+      } else if (error.code === 2) {
+        errorTitle = "GPS Indisponível";
+        errorMessage = "Verifique se está em local aberto com sinal GPS ou use a busca de endereço.";
+      } else if (error.code === 3) {
+        errorTitle = "Tempo Esgotado";
+        errorMessage = "GPS demorou muito. Tente em local aberto ou use a busca de endereço.";
+      }
+      
+      toast({
+        title: errorTitle,
+        description: errorMessage,
+        variant: "destructive",
+      });
+    };
+
+    // Usar watchPosition para melhorar precisão ao longo do tempo
+    watchId = navigator.geolocation.watchPosition(
+      handlePosition,
+      handleError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 30000
+      }
+    );
+
+    // Timeout de segurança: para após 30 segundos
+    setTimeout(() => {
+      if (watchId && isLoadingLocation) {
+        navigator.geolocation.clearWatch(watchId);
         setIsLoadingLocation(false);
         
-        // Feedback sobre precisão
-        if (accuracy > 100) {
+        if (hasFoundLocation) {
           toast({
-            title: "GPS Obtido (Baixa Precisão)",
-            description: `Precisão: ${Math.round(accuracy)}m. Tente em local aberto para melhor resultado.`,
-          });
-        } else if (accuracy > 30) {
-          toast({
-            title: "GPS Obtido",
-            description: `Precisão: ${Math.round(accuracy)}m`,
+            title: "GPS Finalizado",
+            description: `Melhor precisão obtida: ${Math.round(bestAccuracy)}m`,
           });
         } else {
           toast({
-            title: "✓ GPS Preciso",
-            description: `Localização definida com ${Math.round(accuracy)}m de precisão`,
+            title: "Tempo Esgotado",
+            description: "Não foi possível obter GPS preciso. Tente em local aberto ou digite o endereço.",
+            variant: "destructive",
           });
         }
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        setIsLoadingLocation(false);
-        
-        let errorMessage = "Não foi possível obter GPS preciso";
-        let errorTitle = "Erro GPS";
-        
-        if (error.code === 1) {
-          errorTitle = "Permissão Negada";
-          errorMessage = "Por favor, autorize o acesso à localização nas configurações do navegador e recarregue a página.";
-        } else if (error.code === 2) {
-          errorTitle = "GPS Indisponível";
-          errorMessage = "Verifique se está em local aberto com sinal GPS ou use a busca de endereço.";
-        } else if (error.code === 3) {
-          errorTitle = "Tempo Esgotado";
-          errorMessage = "GPS demorou muito. Tente em local aberto ou use a busca de endereço.";
-        }
-        
-        toast({
-          title: errorTitle,
-          description: errorMessage,
-          variant: "destructive",
-        });
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
       }
-    );
+    }, 30000);
   };
 
   const reverseGeocode = async (lat: number, lng: number) => {
@@ -525,32 +590,26 @@ export default function HomePage() {
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      toast({
-        title: "GPS não disponível",
-        description: "Seu navegador não suporta localização GPS",
-        variant: "destructive",
-      });
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const accuracy = position.coords.accuracy;
-        
-        // REJEITAR localização via IP/rede (geralmente > 1000m)
-        if (accuracy > 500) {
-          toast({
-            title: "GPS Impreciso (IP?)",
-            description: `Precisão: ${Math.round(accuracy)}m. Localização por IP não é permitida. Ative o GPS.`,
-            variant: "destructive",
-          });
-          return;
-        }
+    let watchId: number | null = null;
+    let bestAccuracy = Infinity;
+    let attempts = 0;
 
+    const handlePosition = async (position: GeolocationPosition) => {
+      const accuracy = position.coords.accuracy;
+      attempts++;
+      
+      // Se a precisão está melhorando, atualiza
+      if (accuracy < bestAccuracy) {
+        bestAccuracy = accuracy;
+        
         const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
+        
         setUserLocation(location);
         
         if (token) {
@@ -562,31 +621,36 @@ export default function HomePage() {
             body: JSON.stringify(location),
           }).catch(console.error);
         }
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
         
-        let errorMessage = "Não foi possível obter sua localização precisa";
-        if (error.code === 1) {
-          errorMessage = "Permissão de GPS negada. Por favor, autorize o acesso à localização nas configurações do navegador.";
-        } else if (error.code === 2) {
-          errorMessage = "GPS indisponível. Verifique se está em local aberto e com sinal GPS.";
-        } else if (error.code === 3) {
-          errorMessage = "Tempo esgotado ao buscar GPS. Tente novamente.";
+        // Para quando encontrar boa precisão ou após várias tentativas
+        if (accuracy <= 50 || attempts >= 5) {
+          if (watchId) navigator.geolocation.clearWatch(watchId);
         }
-        
-        toast({
-          title: "Erro GPS",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      },
+      }
+    };
+
+    const handleError = (error: GeolocationPositionError) => {
+      console.error('Geolocation error:', error);
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+
+    // Usar watchPosition para melhorar precisão silenciosamente
+    watchId = navigator.geolocation.watchPosition(
+      handlePosition,
+      handleError,
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
+        maximumAge: 0,
+        timeout: 30000
       }
     );
+
+    // Para automaticamente após 20 segundos
+    setTimeout(() => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    }, 20000);
   };
 
   const loadPendingRequests = async () => {
