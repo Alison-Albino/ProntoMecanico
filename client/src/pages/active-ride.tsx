@@ -22,6 +22,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [otherUser, setOtherUser] = useState<any>(null);
   const { toast } = useToast();
   const routesLibrary = useMapsLibrary('routes');
 
@@ -78,6 +79,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
         if (data.mechanicId && user?.userType === 'client') {
           loadMechanicLocation(data.mechanicId);
         }
+        
+        if (data.clientId && user?.userType === 'mechanic') {
+          loadClientData(data.clientId);
+        }
       }
     } catch (error) {
       console.error('Error loading service request:', error);
@@ -92,6 +97,9 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       
       if (response.ok) {
         const mechanic = await response.json();
+        if (user?.userType === 'client') {
+          setOtherUser(mechanic);
+        }
         if (mechanic.currentLat && mechanic.currentLng) {
           setMechanicLocation({
             lat: parseFloat(mechanic.currentLat),
@@ -101,6 +109,23 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       }
     } catch (error) {
       console.error('Error loading mechanic location:', error);
+    }
+  };
+
+  const loadClientData = async (clientId: string) => {
+    try {
+      const response = await fetch(`/api/users/${clientId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const client = await response.json();
+        if (user?.userType === 'mechanic') {
+          setOtherUser(client);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading client data:', error);
     }
   };
 
@@ -263,7 +288,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   if (!serviceRequest) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <Card>
           <CardContent className="p-6">
             <p className="text-muted-foreground">Carregando...</p>
@@ -275,7 +300,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   if (!mechanicLocation && user?.userType === 'client' && serviceRequest.status === 'pending') {
     return (
-      <div className="flex items-center justify-center h-screen p-4">
+      <div className="flex items-center justify-center h-full p-4">
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-lg font-medium mb-2">Aguardando mecânico...</p>
@@ -294,7 +319,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   const mapCenter = mechanicLocation || clientLocation;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <div className="flex-1 relative">
         <Map
           defaultCenter={mapCenter}
@@ -394,8 +419,15 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
                 variant="outline" 
                 size="icon" 
                 onClick={() => {
-                  const phone = user?.userType === 'client' ? serviceRequest.mechanic?.phone : serviceRequest.client?.phone;
-                  if (phone) window.location.href = `tel:${phone}`;
+                  if (otherUser?.phone) {
+                    window.location.href = `tel:${otherUser.phone}`;
+                  } else {
+                    toast({
+                      title: "Número não disponível",
+                      description: "Não foi possível obter o número de telefone",
+                      variant: "destructive",
+                    });
+                  }
                 }}
                 data-testid="button-call"
               >
