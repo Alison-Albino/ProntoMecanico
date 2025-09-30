@@ -52,31 +52,47 @@ function PaymentForm({ serviceData }: PaymentFormProps) {
         throw new Error(error.message);
       }
 
-      if (paymentIntent && paymentIntent.status === 'succeeded') {
-        const response = await fetch('/api/service-requests', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            ...serviceData,
-            paymentIntentId: paymentIntent.id,
-          }),
-        });
+      if (paymentIntent) {
+        if (paymentIntent.status === 'succeeded') {
+          const response = await fetch('/api/service-requests', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ...serviceData,
+              paymentIntentId: paymentIntent.id,
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error('Erro ao criar chamada');
+          if (!response.ok) {
+            throw new Error('Erro ao criar chamada');
+          }
+
+          const serviceRequest = await response.json();
+          toast({
+            title: "Pagamento confirmado",
+            description: "Procurando mecânicos próximos...",
+          });
+          
+          localStorage.removeItem('pendingServiceRequest');
+          setLocation(`/waiting/${serviceRequest.id}`);
+        } else if (paymentIntent.status === 'processing') {
+          toast({
+            title: "Pagamento em processamento",
+            description: "Seu pagamento está sendo processado. Por favor, aguarde...",
+          });
+          setIsProcessing(false);
+        } else if (paymentIntent.status === 'requires_action') {
+          toast({
+            title: "Ação necessária",
+            description: "Por favor, complete a autenticação do pagamento",
+          });
+          setIsProcessing(false);
+        } else {
+          throw new Error(`Status de pagamento inesperado: ${paymentIntent.status}`);
         }
-
-        const serviceRequest = await response.json();
-        toast({
-          title: "Pagamento confirmado",
-          description: "Procurando mecânicos próximos...",
-        });
-        
-        localStorage.removeItem('pendingServiceRequest');
-        setLocation(`/waiting/${serviceRequest.id}`);
       }
     } catch (error: any) {
       toast({
