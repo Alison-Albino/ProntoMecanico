@@ -3,13 +3,13 @@ import { useAuth } from '@/lib/auth-context';
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Wrench, Truck, AlertCircle } from 'lucide-react';
+import { Wrench, Truck, AlertCircle, MapPin, Loader2 } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -21,17 +21,33 @@ export default function HomePage() {
   const [address, setAddress] = useState('');
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
+    getCurrentLocation();
+  }, [token]);
+
+  useEffect(() => {
+    if (user?.userType === 'mechanic' && token) {
+      loadPendingRequests();
+      const interval = setInterval(loadPendingRequests, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [user, token]);
+
+  const getCurrentLocation = () => {
     if (navigator.geolocation) {
+      setIsLoadingLocation(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
           setUserLocation(location);
+          
+          await reverseGeocode(location.lat, location.lng);
           
           if (token) {
             fetch('/api/location/update', {
@@ -41,28 +57,61 @@ export default function HomePage() {
                 'Authorization': `Bearer ${token}`,
               },
               body: JSON.stringify(location),
-            });
+            }).catch(console.error);
           }
+          
+          setIsLoadingLocation(false);
         },
         (error) => {
           console.error('Geolocation error:', error);
+          setIsLoadingLocation(false);
+          
+          let errorMessage = "Não foi possível obter sua localização";
+          if (error.code === 1) {
+            errorMessage = "Permissão de localização negada. Por favor, permita o acesso à localização nas configurações do navegador.";
+          } else if (error.code === 2) {
+            errorMessage = "Localização indisponível. Verifique se o GPS está ativado.";
+          } else if (error.code === 3) {
+            errorMessage = "Tempo esgotado ao tentar obter localização.";
+          }
+          
           toast({
             title: "Erro de localização",
-            description: "Não foi possível obter sua localização",
+            description: errorMessage,
             variant: "destructive",
           });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
+    } else {
+      toast({
+        title: "Erro",
+        description: "Seu navegador não suporta geolocalização",
+        variant: "destructive",
+      });
     }
-  }, [token, toast]);
+  };
 
-  useEffect(() => {
-    if (user?.userType === 'mechanic' && token) {
-      loadPendingRequests();
-      const interval = setInterval(loadPendingRequests, 10000);
-      return () => clearInterval(interval);
+  const reverseGeocode = async (lat: number, lng: number) => {
+    if (!GOOGLE_MAPS_API_KEY) return;
+    
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        setAddress(data.results[0].formatted_address);
+      }
+    } catch (error) {
+      console.error('Erro ao obter endereço:', error);
     }
-  }, [user, token]);
+  };
 
   const loadPendingRequests = async () => {
     try {
@@ -82,7 +131,16 @@ export default function HomePage() {
     if (!userLocation) {
       toast({
         title: "Erro",
-        description: "Localização não disponível",
+        description: "Localização não disponível. Clique no ícone de localização para obter sua posição.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!address.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, informe o endereço",
         variant: "destructive",
       });
       return;
@@ -96,28 +154,29 @@ export default function HomePage() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
+          clientId: user?.id,
           serviceType,
-          pickupLat: userLocation.lat,
-          pickupLng: userLocation.lng,
+          pickupLat: userLocation.lat.toString(),
+          pickupLng: userLocation.lng.toString(),
           pickupAddress: address,
-          description,
-          status: 'pending',
+          description: description || undefined,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao criar chamada');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao criar chamada');
       }
 
       toast({
         title: "Sucesso",
-        description: "Chamada criada com sucesso",
+        description: "Chamada criada com sucesso! Aguardando mecânico aceitar.",
       });
       
       setIsRequestDialogOpen(false);
       setDescription('');
-      setAddress('');
     } catch (error: any) {
+      console.error('Error creating request:', error);
       toast({
         title: "Erro",
         description: error.message,
@@ -157,12 +216,15 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao aceitar chamada');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao aceitar chamada');
       }
+
+      const acceptedRequest = await response.json();
 
       toast({
         title: "Sucesso",
-        description: "Chamada aceita com sucesso",
+        description: `Chamada aceita! Valor total: R$ ${parseFloat(acceptedRequest.totalPrice).toFixed(2)}`,
       });
       
       loadPendingRequests();
@@ -212,11 +274,13 @@ export default function HomePage() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 relative">
-        {userLocation && (
+        {userLocation ? (
           <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
             <Map
+              mapId="service-map"
               defaultZoom={14}
               defaultCenter={userLocation}
+              center={userLocation}
               gestureHandling="greedy"
               disableDefaultUI={false}
               style={{ width: '100%', height: '100%' }}
@@ -235,6 +299,20 @@ export default function HomePage() {
               ))}
             </Map>
           </APIProvider>
+        ) : (
+          <div className="flex items-center justify-center h-full bg-muted">
+            <Card>
+              <CardContent className="p-6 text-center space-y-4">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Obtendo sua localização...
+                </p>
+                <Button onClick={getCurrentLocation} variant="outline" size="sm">
+                  Tentar Novamente
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {user?.userType === 'client' && (
@@ -248,6 +326,9 @@ export default function HomePage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Nova Solicitação</DialogTitle>
+                  <DialogDescription>
+                    Preencha os dados para solicitar um serviço
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -267,13 +348,36 @@ export default function HomePage() {
 
                   <div>
                     <Label htmlFor="address">Endereço</Label>
-                    <Input
-                      id="address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      data-testid="input-address"
-                      required
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="address"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        data-testid="input-address"
+                        placeholder="Digite o endereço ou use o botão de localização"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={getCurrentLocation}
+                        disabled={isLoadingLocation}
+                        data-testid="button-get-location"
+                        title="Obter minha localização atual"
+                      >
+                        {isLoadingLocation ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <MapPin className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    {userLocation && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Lat: {userLocation.lat.toFixed(6)}, Lng: {userLocation.lng.toFixed(6)}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -283,12 +387,14 @@ export default function HomePage() {
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       data-testid="input-description"
+                      placeholder="Descreva o problema (opcional)"
                     />
                   </div>
 
-                  <div className="text-sm text-muted-foreground">
-                    <p>Taxa de acionamento: R$ 50,00</p>
-                    <p>Taxa por km: R$ 6,00</p>
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                    <p className="font-semibold mb-1">Valores:</p>
+                    <p>• Taxa de acionamento: R$ 50,00</p>
+                    <p>• Taxa por km rodado: R$ 6,00/km</p>
                   </div>
 
                   <Button 
@@ -320,6 +426,16 @@ export default function HomePage() {
                   </p>
                   {request.description && (
                     <p className="text-sm mb-2">{request.description}</p>
+                  )}
+                  {userLocation && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Distância: ~{calculateDistance(
+                        userLocation.lat,
+                        userLocation.lng,
+                        parseFloat(request.pickupLat),
+                        parseFloat(request.pickupLng)
+                      ).toFixed(1)} km
+                    </p>
                   )}
                   <Button
                     onClick={() => handleAcceptRequest(request.id)}
