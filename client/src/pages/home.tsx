@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Wrench, Truck, AlertCircle, MapPin, Loader2 } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export default function HomePage() {
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [isOnline, setIsOnline] = useState(user?.isOnline || false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -29,12 +31,16 @@ export default function HomePage() {
   }, [token]);
 
   useEffect(() => {
-    if (user?.userType === 'mechanic' && token) {
+    if (user?.userType === 'mechanic' && token && isOnline) {
       loadPendingRequests();
       const interval = setInterval(loadPendingRequests, 10000);
       return () => clearInterval(interval);
     }
-  }, [user, token]);
+  }, [user, token, isOnline]);
+
+  useEffect(() => {
+    setIsOnline(user?.isOnline || false);
+  }, [user]);
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -249,6 +255,42 @@ export default function HomePage() {
     return R * c;
   }
 
+  const handleToggleOnline = async (checked: boolean) => {
+    try {
+      const response = await fetch('/api/auth/toggle-online', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isOnline: checked }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao alterar status');
+      }
+
+      setIsOnline(checked);
+      
+      toast({
+        title: checked ? "Online" : "Offline",
+        description: checked 
+          ? "Você está online e pode receber chamadas" 
+          : "Você está offline e não receberá chamadas",
+      });
+
+      if (!checked) {
+        setPendingRequests([]);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getServiceIcon = (type: string) => {
     switch (type) {
       case 'mechanic': return <Wrench className="w-4 h-4" />;
@@ -273,6 +315,29 @@ export default function HomePage() {
 
   return (
     <div className="h-full flex flex-col">
+      {user?.userType === 'mechanic' && (
+        <div className="bg-card border-b p-4">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+              <span className="font-medium">
+                {isOnline ? 'Online - Recebendo Chamadas' : 'Offline - Não Receberá Chamadas'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="online-toggle" className="text-sm">
+                {isOnline ? 'Ficar Offline' : 'Ficar Online'}
+              </Label>
+              <Switch
+                id="online-toggle"
+                checked={isOnline}
+                onCheckedChange={handleToggleOnline}
+                data-testid="switch-online-status"
+              />
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 relative">
         {userLocation ? (
           <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
@@ -410,7 +475,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {user?.userType === 'mechanic' && pendingRequests.length > 0 && (
+        {user?.userType === 'mechanic' && isOnline && pendingRequests.length > 0 && (
           <div className="absolute top-4 right-4 z-10 space-y-2 max-w-sm">
             {pendingRequests.map((request) => (
               <Card key={request.id} data-testid={`card-request-${request.id}`}>

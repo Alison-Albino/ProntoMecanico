@@ -129,7 +129,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário ou senha inválidos" });
       }
 
-      await storage.updateUserOnlineStatus(user.id, true);
+      const shouldBeOnline = user.userType === 'mechanic';
+      await storage.updateUserOnlineStatus(user.id, shouldBeOnline);
+      user.isOnline = shouldBeOnline;
 
       const { password, ...userWithoutPassword } = user;
       const token = generateSessionToken();
@@ -155,9 +157,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logout realizado com sucesso" });
   });
 
-  app.get("/api/auth/me", authMiddleware, (req, res) => {
-    const { password, ...userWithoutPassword } = req.user!;
+  app.get("/api/auth/me", authMiddleware, async (req, res) => {
+    const user = await storage.getUser(req.user!.id);
+    if (!user) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+    const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
+  });
+
+  app.post("/api/auth/toggle-online", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos podem alterar status online" });
+      }
+
+      const { isOnline } = req.body;
+      await storage.updateUserOnlineStatus(req.user!.id, isOnline);
+      
+      const updatedUser = await storage.getUser(req.user!.id);
+      if (updatedUser) {
+        sessions.set(Array.from(sessions.entries()).find(([_, u]) => u.id === req.user!.id)?.[0] || '', updatedUser);
+      }
+
+      res.json({ isOnline });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
   });
 
   app.post("/api/location/update", authMiddleware, async (req, res) => {
