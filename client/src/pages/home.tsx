@@ -18,19 +18,25 @@ const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 function AddressAutocomplete({ 
   onPlaceSelect,
-  value
+  value,
+  onChange
 }: { 
   onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
   value?: string;
+  onChange?: (value: string) => void;
 }) {
   const places = useMapsLibrary('places');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [inputValue, setInputValue] = useState(value || '');
 
   // Sync external value changes (like from GPS) to the input
   useEffect(() => {
-    if (inputRef.current && value !== undefined && value !== inputRef.current.value) {
-      inputRef.current.value = value;
+    if (value !== undefined && value !== inputValue) {
+      setInputValue(value);
+      if (inputRef.current) {
+        inputRef.current.value = value;
+      }
     }
   }, [value]);
 
@@ -47,6 +53,12 @@ function AddressAutocomplete({
 
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
+      if (place?.formatted_address) {
+        setInputValue(place.formatted_address);
+        if (onChange) {
+          onChange(place.formatted_address);
+        }
+      }
       onPlaceSelect(place || null);
     });
 
@@ -55,7 +67,15 @@ function AddressAutocomplete({
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, [places, onPlaceSelect]);
+  }, [places, onPlaceSelect, onChange]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    if (onChange) {
+      onChange(newValue);
+    }
+  };
 
   return (
     <div className="relative" style={{ zIndex: 10 }}>
@@ -64,8 +84,9 @@ function AddressAutocomplete({
       </div>
       <input
         ref={inputRef}
-        defaultValue={value || ''}
-        placeholder="Para onde você precisa do serviço?"
+        value={inputValue}
+        onChange={handleInputChange}
+        placeholder="Digite um endereço..."
         data-testid="input-address-autocomplete"
         autoComplete="off"
         className="flex h-11 w-full rounded-lg border border-input bg-background pl-11 pr-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
@@ -100,56 +121,99 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
   };
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      setIsLoadingLocation(true);
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setUserLocation(location);
-          
-          await reverseGeocode(location.lat, location.lng);
-          
-          if (token) {
-            fetchWithAuth('/api/location/update', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(location),
-            }).catch(console.error);
-          }
-          
+    if (!navigator.geolocation) {
+      toast({
+        title: "GPS não disponível",
+        description: "Seu navegador não suporta localização GPS. Digite o endereço manualmente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const accuracy = position.coords.accuracy;
+        
+        // REJEITAR localização via IP/rede (geralmente > 1000m de precisão)
+        if (accuracy > 500) {
           setIsLoadingLocation(false);
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
-          setIsLoadingLocation(false);
-          
-          let errorMessage = "Não foi possível obter sua localização";
-          if (error.code === 1) {
-            errorMessage = "Permissão de localização negada. Use a busca de endereço para continuar.";
-          } else if (error.code === 2) {
-            errorMessage = "Localização indisponível. Use a busca de endereço para continuar.";
-          } else if (error.code === 3) {
-            errorMessage = "Tempo esgotado. Use a busca de endereço para continuar.";
-          }
-          
           toast({
-            title: "Erro de localização",
-            description: errorMessage,
+            title: "GPS Impreciso Rejeitado",
+            description: `Precisão muito baixa (${Math.round(accuracy)}m). Isso parece localização por IP. Ative o GPS e tente em local aberto.`,
             variant: "destructive",
           });
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+          return;
         }
-      );
-    }
+        
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUserLocation(location);
+        
+        await reverseGeocode(location.lat, location.lng);
+        
+        if (token) {
+          fetchWithAuth('/api/location/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(location),
+          }).catch(console.error);
+        }
+        
+        setIsLoadingLocation(false);
+        
+        // Feedback sobre precisão
+        if (accuracy > 100) {
+          toast({
+            title: "GPS Obtido (Baixa Precisão)",
+            description: `Precisão: ${Math.round(accuracy)}m. Tente em local aberto para melhor resultado.`,
+          });
+        } else if (accuracy > 30) {
+          toast({
+            title: "GPS Obtido",
+            description: `Precisão: ${Math.round(accuracy)}m`,
+          });
+        } else {
+          toast({
+            title: "✓ GPS Preciso",
+            description: `Localização definida com ${Math.round(accuracy)}m de precisão`,
+          });
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        setIsLoadingLocation(false);
+        
+        let errorMessage = "Não foi possível obter GPS preciso";
+        let errorTitle = "Erro GPS";
+        
+        if (error.code === 1) {
+          errorTitle = "Permissão Negada";
+          errorMessage = "Por favor, autorize o acesso à localização nas configurações do navegador e recarregue a página.";
+        } else if (error.code === 2) {
+          errorTitle = "GPS Indisponível";
+          errorMessage = "Verifique se está em local aberto com sinal GPS ou use a busca de endereço.";
+        } else if (error.code === 3) {
+          errorTitle = "Tempo Esgotado";
+          errorMessage = "GPS demorou muito. Tente em local aberto ou use a busca de endereço.";
+        }
+        
+        toast({
+          title: errorTitle,
+          description: errorMessage,
+          variant: "destructive",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   const reverseGeocode = async (lat: number, lng: number) => {
@@ -246,6 +310,7 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
               <AddressAutocomplete
                 onPlaceSelect={handlePlaceSelect}
                 value={address}
+                onChange={setAddress}
               />
             </div>
             
@@ -269,20 +334,26 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
               {isLoadingLocation ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Obtendo localização precisa...
+                  Obtendo GPS preciso...
                 </>
               ) : userLocation ? (
                 <>
-                  <MapPin className="w-4 h-4 mr-2 fill-current" />
-                  Localização GPS Definida
+                  <MapPin className="w-4 h-4 mr-2" />
+                  ✓ GPS Definido
                 </>
               ) : (
                 <>
                   <MapPin className="w-4 h-4 mr-2" />
-                  Usar Minha Localização GPS
+                  Usar GPS (Recomendado)
                 </>
               )}
             </Button>
+            
+            {!userLocation && (
+              <p className="text-xs text-muted-foreground text-center">
+                💡 GPS é mais preciso. Certifique-se de autorizar a localização.
+              </p>
+            )}
 
             {userLocation && address && (
               <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -420,35 +491,69 @@ export default function HomePage() {
   };
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setUserLocation(location);
-          
-          if (token) {
-            fetchWithAuth('/api/location/update', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(location),
-            }).catch(console.error);
-          }
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
+    if (!navigator.geolocation) {
+      toast({
+        title: "GPS não disponível",
+        description: "Seu navegador não suporta localização GPS",
+        variant: "destructive",
+      });
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const accuracy = position.coords.accuracy;
+        
+        // REJEITAR localização via IP/rede (geralmente > 1000m)
+        if (accuracy > 500) {
+          toast({
+            title: "GPS Impreciso (IP?)",
+            description: `Precisão: ${Math.round(accuracy)}m. Localização por IP não é permitida. Ative o GPS.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUserLocation(location);
+        
+        if (token) {
+          fetchWithAuth('/api/location/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(location),
+          }).catch(console.error);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        
+        let errorMessage = "Não foi possível obter sua localização precisa";
+        if (error.code === 1) {
+          errorMessage = "Permissão de GPS negada. Por favor, autorize o acesso à localização nas configurações do navegador.";
+        } else if (error.code === 2) {
+          errorMessage = "GPS indisponível. Verifique se está em local aberto e com sinal GPS.";
+        } else if (error.code === 3) {
+          errorMessage = "Tempo esgotado ao buscar GPS. Tente novamente.";
+        }
+        
+        toast({
+          title: "Erro GPS",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   const loadPendingRequests = async () => {
