@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from 'wouter';
-import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
@@ -11,21 +11,306 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Wrench, Truck, AlertCircle, MapPin, Loader2 } from 'lucide-react';
+import { Wrench, Truck, AlertCircle, MapPin, Loader2, Search } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-export default function HomePage() {
-  const { user, token, updateUser } = useAuth();
+function AddressAutocomplete({ 
+  onPlaceSelect, 
+  value, 
+  onChange 
+}: { 
+  onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const places = useMapsLibrary('places');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      types: ['address'],
+    };
+
+    autocompleteRef.current = new places.Autocomplete(inputRef.current, options);
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current?.getPlace();
+      onPlaceSelect(place || null);
+    });
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [places, onPlaceSelect]);
+
+  return (
+    <div className="relative">
+      <Input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Digite o endereço para o acionamento..."
+        data-testid="input-address-autocomplete"
+        className="pr-10"
+      />
+      <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
+
+function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
+  const { user, token } = useAuth();
   const [, setLocation] = useLocation();
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [serviceType, setServiceType] = useState<string>('mechanic');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const { toast } = useToast();
+
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
+    if (place?.geometry?.location) {
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      
+      setUserLocation({ lat, lng });
+      setAddress(place.formatted_address || '');
+      
+      toast({
+        title: "Localização definida",
+        description: "Endereço selecionado com sucesso",
+      });
+    }
+  };
+
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      setIsLoadingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setUserLocation(location);
+          
+          await reverseGeocode(location.lat, location.lng);
+          
+          if (token) {
+            fetch('/api/location/update', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify(location),
+            }).catch(console.error);
+          }
+          
+          setIsLoadingLocation(false);
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setIsLoadingLocation(false);
+          
+          let errorMessage = "Não foi possível obter sua localização";
+          if (error.code === 1) {
+            errorMessage = "Permissão de localização negada. Use a busca de endereço para continuar.";
+          } else if (error.code === 2) {
+            errorMessage = "Localização indisponível. Use a busca de endereço para continuar.";
+          } else if (error.code === 3) {
+            errorMessage = "Tempo esgotado. Use a busca de endereço para continuar.";
+          }
+          
+          toast({
+            title: "Erro de localização",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+  };
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    if (!GOOGLE_MAPS_API_KEY) return;
+    
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        setAddress(data.results[0].formatted_address);
+      }
+    } catch (error) {
+      console.error('Erro ao obter endereço:', error);
+    }
+  };
+
+  const handleCreateRequest = async () => {
+    if (!userLocation) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um endereço na busca ou use o botão de localização GPS",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!address.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, informe o endereço",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const serviceData = {
+      serviceType,
+      pickupLat: userLocation.lat.toString(),
+      pickupLng: userLocation.lng.toString(),
+      pickupAddress: address,
+      description: description || undefined,
+    };
+
+    localStorage.setItem('pendingServiceRequest', JSON.stringify(serviceData));
+    
+    onOpenChange(false);
+    setDescription('');
+    setAddress('');
+    setUserLocation(null);
+    setLocation('/payment');
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="lg" data-testid="button-new-request">
+          Solicitar Serviço
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nova Solicitação</DialogTitle>
+          <DialogDescription>
+            Preencha os dados para solicitar um serviço
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Tipo de Serviço</Label>
+            <Select value={serviceType} onValueChange={setServiceType}>
+              <SelectTrigger data-testid="select-service-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mechanic">Mecânico</SelectItem>
+                <SelectItem value="tow_truck">Guincho</SelectItem>
+                <SelectItem value="road_assistance">Assistência na Estrada</SelectItem>
+                <SelectItem value="other">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="address">Endereço do Acionamento</Label>
+            <div className="space-y-2">
+              <AddressAutocomplete
+                value={address}
+                onChange={setAddress}
+                onPlaceSelect={handlePlaceSelect}
+              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-border"></div>
+                <span className="text-xs text-muted-foreground">ou</span>
+                <div className="flex-1 h-px bg-border"></div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={getCurrentLocation}
+                disabled={isLoadingLocation}
+                data-testid="button-get-location"
+                className="w-full"
+              >
+                {isLoadingLocation ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Obtendo localização...
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Usar Minha Localização Atual (GPS)
+                  </>
+                )}
+              </Button>
+            </div>
+            {userLocation && (
+              <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+                <p className="text-xs text-green-800 dark:text-green-200 font-medium">
+                  ✓ Localização definida
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                  {address || `Lat: ${userLocation.lat.toFixed(6)}, Lng: ${userLocation.lng.toFixed(6)}`}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="description">Descrição do Problema</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              data-testid="input-description"
+              placeholder="Descreva o problema (opcional)"
+            />
+          </div>
+
+          <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+            <p className="font-semibold mb-1">Valores:</p>
+            <p>• Taxa de acionamento: R$ 50,00</p>
+            <p>• Taxa por km rodado: R$ 6,00/km</p>
+          </div>
+
+          <Button 
+            onClick={handleCreateRequest} 
+            className="w-full"
+            data-testid="button-submit-request"
+          >
+            Solicitar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function HomePage() {
+  const { user, token, updateUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [nearbyMechanics, setNearbyMechanics] = useState<any[]>([]);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const { toast } = useToast();
 
   const isOnline = user?.isOnline || false;
@@ -102,7 +387,6 @@ export default function HomePage() {
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
-      setIsLoadingLocation(true);
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const location = {
@@ -110,8 +394,6 @@ export default function HomePage() {
             lng: position.coords.longitude,
           };
           setUserLocation(location);
-          
-          await reverseGeocode(location.lat, location.lng);
           
           if (token) {
             fetch('/api/location/update', {
@@ -123,57 +405,16 @@ export default function HomePage() {
               body: JSON.stringify(location),
             }).catch(console.error);
           }
-          
-          setIsLoadingLocation(false);
         },
         (error) => {
           console.error('Geolocation error:', error);
-          setIsLoadingLocation(false);
-          
-          let errorMessage = "Não foi possível obter sua localização";
-          if (error.code === 1) {
-            errorMessage = "Permissão de localização negada. Por favor, permita o acesso à localização nas configurações do navegador.";
-          } else if (error.code === 2) {
-            errorMessage = "Localização indisponível. Verifique se o GPS está ativado.";
-          } else if (error.code === 3) {
-            errorMessage = "Tempo esgotado ao tentar obter localização.";
-          }
-          
-          toast({
-            title: "Erro de localização",
-            description: errorMessage,
-            variant: "destructive",
-          });
         },
         {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 300000
         }
       );
-    } else {
-      toast({
-        title: "Erro",
-        description: "Seu navegador não suporta geolocalização",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const reverseGeocode = async (lat: number, lng: number) => {
-    if (!GOOGLE_MAPS_API_KEY) return;
-    
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
-      );
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        setAddress(data.results[0].formatted_address);
-      }
-    } catch (error) {
-      console.error('Erro ao obter endereço:', error);
     }
   };
 
@@ -189,40 +430,6 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error loading requests:', error);
     }
-  };
-
-  const handleCreateRequest = async () => {
-    if (!userLocation) {
-      toast({
-        title: "Erro",
-        description: "Localização não disponível. Clique no ícone de localização para obter sua posição.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!address.trim()) {
-      toast({
-        title: "Erro",
-        description: "Por favor, informe o endereço",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const serviceData = {
-      serviceType,
-      pickupLat: userLocation.lat.toString(),
-      pickupLng: userLocation.lng.toString(),
-      pickupAddress: address,
-      description: description || undefined,
-    };
-
-    localStorage.setItem('pendingServiceRequest', JSON.stringify(serviceData));
-    
-    setIsRequestDialogOpen(false);
-    setDescription('');
-    setLocation('/payment');
   };
 
   const handleAcceptRequest = async (requestId: string) => {
@@ -335,7 +542,7 @@ export default function HomePage() {
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <Card>
           <CardContent className="p-6">
             <p className="text-muted-foreground">
@@ -348,33 +555,33 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {user?.userType === 'mechanic' && (
-        <div className="bg-card border-b p-4">
-          <div className="container mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-              <span className="font-medium">
-                {isOnline ? 'Online - Recebendo Chamadas' : 'Offline - Não Receberá Chamadas'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="online-toggle" className="text-sm">
-                {isOnline ? 'Ficar Offline' : 'Ficar Online'}
-              </Label>
-              <Switch
-                id="online-toggle"
-                checked={isOnline}
-                onCheckedChange={handleToggleOnline}
-                data-testid="switch-online-status"
-              />
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <div className="h-full flex flex-col">
+        {user?.userType === 'mechanic' && (
+          <div className="bg-card border-b p-4">
+            <div className="container mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <span className="font-medium">
+                  {isOnline ? 'Online - Recebendo Chamadas' : 'Offline - Não Receberá Chamadas'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="online-toggle" className="text-sm">
+                  {isOnline ? 'Ficar Offline' : 'Ficar Online'}
+                </Label>
+                <Switch
+                  id="online-toggle"
+                  checked={isOnline}
+                  onCheckedChange={handleToggleOnline}
+                  data-testid="switch-online-status"
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      <div className="flex-1 relative">
-        {userLocation ? (
-          <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+        )}
+        <div className="flex-1 relative">
+          {userLocation ? (
             <Map
               mapId="service-map"
               defaultZoom={16}
@@ -423,175 +630,89 @@ export default function HomePage() {
                 </AdvancedMarker>
               ))}
             </Map>
-          </APIProvider>
-        ) : (
-          <div className="flex items-center justify-center h-full bg-muted">
-            <Card>
-              <CardContent className="p-6 text-center space-y-4">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Obtendo sua localização...
-                </p>
-                <Button onClick={getCurrentLocation} variant="outline" size="sm">
-                  Tentar Novamente
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {user?.userType === 'client' && nearbyMechanics.length > 0 && (
-          <div className="absolute top-4 left-4 z-10">
-            <Card className="shadow-lg">
-              <CardContent className="p-3 flex items-center gap-2">
-                <div className="bg-green-100 p-2 rounded-full">
-                  <Wrench className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} online</p>
-                  <p className="text-xs text-muted-foreground">Próximos a você</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {user?.userType === 'client' && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-            <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" data-testid="button-new-request">
-                  Solicitar Serviço
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nova Solicitação</DialogTitle>
-                  <DialogDescription>
-                    Preencha os dados para solicitar um serviço
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Tipo de Serviço</Label>
-                    <Select value={serviceType} onValueChange={setServiceType}>
-                      <SelectTrigger data-testid="select-service-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mechanic">Mecânico</SelectItem>
-                        <SelectItem value="tow_truck">Guincho</SelectItem>
-                        <SelectItem value="road_assistance">Assistência na Estrada</SelectItem>
-                        <SelectItem value="other">Outro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="address">Endereço</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="address"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        data-testid="input-address"
-                        placeholder="Digite o endereço ou use o botão de localização"
-                        required
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={getCurrentLocation}
-                        disabled={isLoadingLocation}
-                        data-testid="button-get-location"
-                        title="Obter minha localização atual"
-                      >
-                        {isLoadingLocation ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <MapPin className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                    {userLocation && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Lat: {userLocation.lat.toFixed(6)}, Lng: {userLocation.lng.toFixed(6)}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Descrição do Problema</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      data-testid="input-description"
-                      placeholder="Descreva o problema (opcional)"
-                    />
-                  </div>
-
-                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    <p className="font-semibold mb-1">Valores:</p>
-                    <p>• Taxa de acionamento: R$ 50,00</p>
-                    <p>• Taxa por km rodado: R$ 6,00/km</p>
-                  </div>
-
-                  <Button 
-                    onClick={handleCreateRequest} 
-                    className="w-full"
-                    data-testid="button-submit-request"
-                  >
-                    Solicitar
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-
-        {user?.userType === 'mechanic' && isOnline && pendingRequests.length > 0 && (
-          <div className="absolute top-4 right-4 z-10 space-y-2 max-w-sm">
-            {pendingRequests.map((request) => (
-              <Card key={request.id} data-testid={`card-request-${request.id}`}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Nova Chamada
-                  </CardTitle>
-                  {getServiceIcon(request.serviceType)}
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {request.pickupAddress}
+          ) : (
+            <div className="flex items-center justify-center h-full bg-muted">
+              <Card>
+                <CardContent className="p-6 text-center space-y-4">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Obtendo sua localização...
                   </p>
-                  {request.description && (
-                    <p className="text-sm mb-2">{request.description}</p>
-                  )}
-                  {userLocation && (
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Distância: ~{calculateDistance(
-                        userLocation.lat,
-                        userLocation.lng,
-                        parseFloat(request.pickupLat),
-                        parseFloat(request.pickupLng)
-                      ).toFixed(1)} km
-                    </p>
-                  )}
-                  <Button
-                    onClick={() => handleAcceptRequest(request.id)}
-                    className="w-full"
-                    size="sm"
-                    data-testid={`button-accept-${request.id}`}
-                  >
-                    Aceitar Chamada
+                  <Button onClick={getCurrentLocation} variant="outline" size="sm">
+                    Tentar Novamente
                   </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+
+          {user?.userType === 'client' && nearbyMechanics.length > 0 && (
+            <div className="absolute top-4 left-4 z-10">
+              <Card className="shadow-lg">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <div className="bg-green-100 p-2 rounded-full">
+                    <Wrench className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} online</p>
+                    <p className="text-xs text-muted-foreground">Próximos a você</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {user?.userType === 'client' && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+              <RequestDialog 
+                isOpen={isRequestDialogOpen} 
+                onOpenChange={setIsRequestDialogOpen} 
+              />
+            </div>
+          )}
+
+          {user?.userType === 'mechanic' && isOnline && pendingRequests.length > 0 && (
+            <div className="absolute top-4 right-4 z-10 space-y-2 max-w-sm">
+              {pendingRequests.map((request) => (
+                <Card key={request.id} data-testid={`card-request-${request.id}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Nova Chamada
+                    </CardTitle>
+                    {getServiceIcon(request.serviceType)}
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {request.pickupAddress}
+                    </p>
+                    {request.description && (
+                      <p className="text-sm mb-2">{request.description}</p>
+                    )}
+                    {userLocation && (
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Distância: ~{calculateDistance(
+                          userLocation.lat,
+                          userLocation.lng,
+                          parseFloat(request.pickupLat),
+                          parseFloat(request.pickupLng)
+                        ).toFixed(1)} km
+                      </p>
+                    )}
+                    <Button
+                      onClick={() => handleAcceptRequest(request.id)}
+                      className="w-full"
+                      size="sm"
+                      data-testid={`button-accept-${request.id}`}
+                    >
+                      Aceitar Chamada
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </APIProvider>
   );
 }
