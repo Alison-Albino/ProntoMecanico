@@ -37,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           localStorage.removeItem('auth_token');
+          setUser(null);
+          setToken(null);
         })
         .finally(() => setIsLoading(false));
     } else {

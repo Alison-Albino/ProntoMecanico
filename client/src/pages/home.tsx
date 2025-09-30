@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Wrench, Truck, AlertCircle, MapPin, Loader2, Search } from 'lucide-react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -99,11 +100,10 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
           await reverseGeocode(location.lat, location.lng);
           
           if (token) {
-            fetch('/api/location/update', {
+            fetchWithAuth('/api/location/update', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
               },
               body: JSON.stringify(location),
             }).catch(console.error);
@@ -359,13 +359,8 @@ export default function HomePage() {
     if (!userLocation) return;
     
     try {
-      const response = await fetch(
-        `/api/mechanics/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=20`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
+      const response = await fetchWithAuth(
+        `/api/mechanics/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=20`
       );
       
       if (response.ok) {
@@ -388,11 +383,10 @@ export default function HomePage() {
           setUserLocation(location);
           
           if (token) {
-            fetch('/api/location/update', {
+            fetchWithAuth('/api/location/update', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
               },
               body: JSON.stringify(location),
             }).catch(console.error);
@@ -412,9 +406,7 @@ export default function HomePage() {
 
   const loadPendingRequests = async () => {
     try {
-      const response = await fetch('/api/service-requests/pending', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth('/api/service-requests/pending');
       if (response.ok) {
         const data = await response.json();
         setPendingRequests(data);
@@ -445,11 +437,10 @@ export default function HomePage() {
         parseFloat(request.pickupLng)
       );
 
-      const response = await fetch(`/api/service-requests/${requestId}/accept`, {
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ distance }),
       });
@@ -490,11 +481,10 @@ export default function HomePage() {
 
   const handleToggleOnline = async (checked: boolean) => {
     try {
-      const response = await fetch('/api/auth/toggle-online', {
+      const response = await fetchWithAuth('/api/auth/toggle-online', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ isOnline: checked }),
       });

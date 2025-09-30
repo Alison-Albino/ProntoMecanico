@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -89,9 +90,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   const loadServiceRequest = async () => {
     try {
-      const response = await fetch(`/api/service-requests/${requestId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -130,9 +129,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   const loadMechanicLocation = async (mechanicId: string) => {
     try {
-      const response = await fetch(`/api/users/${mechanicId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth(`/api/users/${mechanicId}`);
       
       if (response.ok) {
         const mechanic = await response.json();
@@ -153,9 +150,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   const loadClientData = async (clientId: string) => {
     try {
-      const response = await fetch(`/api/users/${clientId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth(`/api/users/${clientId}`);
       
       if (response.ok) {
         const client = await response.json();
@@ -178,11 +173,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
           };
           setMechanicLocation(location);
           
-          await fetch('/api/location/update', {
+          await fetchWithAuth('/api/location/update', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(location),
           });
@@ -231,11 +225,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   const handleArrived = async () => {
     try {
-      const response = await fetch(`/api/service-requests/${requestId}/arrived`, {
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}/arrived`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -258,11 +251,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
   const handleComplete = async () => {
     try {
-      const response = await fetch(`/api/service-requests/${requestId}/complete`, {
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -298,11 +290,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
     }
 
     try {
-      const response = await fetch(`/api/service-requests/${requestId}/rate`, {
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ rating, comment: comment }),
       });
