@@ -233,16 +233,27 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
     }
   };
 
-  const handleCreateRequest = async () => {
-    if (!userLocation) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione um endereço na busca ou use o botão de localização GPS",
-        variant: "destructive",
-      });
-      return;
+  const geocodeAddress = async (addressText: string): Promise<{ lat: number; lng: number } | null> => {
+    if (!GOOGLE_MAPS_API_KEY) return null;
+    
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${GOOGLE_MAPS_API_KEY}&components=country:BR`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const location = data.results[0].geometry.location;
+        return { lat: location.lat, lng: location.lng };
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao geocodificar endereço:', error);
+      return null;
     }
+  };
 
+  const handleCreateRequest = async () => {
     if (!address.trim()) {
       toast({
         title: "Erro",
@@ -252,10 +263,32 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
       return;
     }
 
+    let finalLocation = userLocation;
+
+    if (!finalLocation) {
+      toast({
+        title: "Convertendo endereço...",
+        description: "Obtendo coordenadas do endereço digitado",
+      });
+
+      finalLocation = await geocodeAddress(address);
+      
+      if (!finalLocation) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível encontrar as coordenadas deste endereço. Tente selecionar uma sugestão ou usar GPS.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setUserLocation(finalLocation);
+    }
+
     const serviceData = {
       serviceType,
-      pickupLat: userLocation.lat.toString(),
-      pickupLng: userLocation.lng.toString(),
+      pickupLat: finalLocation.lat.toString(),
+      pickupLng: finalLocation.lng.toString(),
       pickupAddress: address,
       description: description || undefined,
     };
