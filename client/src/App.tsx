@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { WebSocketProvider } from "@/lib/websocket";
 import { MobileNav } from "@/components/mobile-nav";
+import OnboardingPage from "@/pages/onboarding";
 import LoginPage from "@/pages/login";
 import HomePage from "@/pages/home";
 import HistoryPage from "@/pages/history";
@@ -65,6 +66,14 @@ function ActiveRideRedirect() {
 
 function Router() {
   const { user, isLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    const onboardingCompleted = localStorage.getItem('onboarding_completed');
+    if (!onboardingCompleted && !user && location !== '/onboarding') {
+      setLocation('/onboarding');
+    }
+  }, [user, location, setLocation]);
 
   if (isLoading) {
     return (
@@ -78,6 +87,8 @@ function Router() {
     <WebSocketProvider>
       <ActiveRideRedirect />
       <Switch>
+        <Route path="/onboarding" component={OnboardingPage} />
+        
         <Route path="/login">
           {user ? <Redirect to="/" /> : <LoginPage />}
         </Route>
