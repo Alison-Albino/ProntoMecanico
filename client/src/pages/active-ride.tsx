@@ -5,7 +5,9 @@ import { APIProvider, Map, AdvancedMarker, useMapsLibrary } from '@vis.gl/react-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle } from 'lucide-react';
+import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -17,6 +19,9 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   const [routeDistance, setRouteDistance] = useState<string>('');
   const [routeDuration, setRouteDuration] = useState<string>('');
   const [routePath, setRoutePath] = useState<Array<{ lat: number; lng: number }>>([]);
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
   const { toast } = useToast();
   const routesLibrary = useMapsLibrary('routes');
 
@@ -52,7 +57,17 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
         const data = await response.json();
         setServiceRequest(data);
         
-        if (data.status === 'completed') {
+        if (data.status === 'completed' && user?.userType === 'mechanic') {
+          toast({
+            title: "Serviço concluído",
+            description: "O pagamento foi adicionado à sua carteira",
+          });
+          setTimeout(() => setLocation('/'), 2000);
+        }
+        
+        if (data.status === 'completed' && user?.userType === 'client' && !data.rating) {
+          setShowRatingDialog(true);
+        } else if (data.status === 'completed' && user?.userType === 'client' && data.rating) {
           toast({
             title: "Serviço concluído",
             description: "Obrigado por usar nossos serviços!",
@@ -189,12 +204,54 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
       if (!response.ok) throw new Error('Erro ao finalizar serviço');
 
+      if (user?.userType === 'client') {
+        setShowRatingDialog(true);
+        loadServiceRequest();
+      } else {
+        toast({
+          title: "Serviço finalizado",
+          description: "Você receberá o pagamento em sua carteira",
+        });
+        setLocation('/');
+      }
+    } catch (error: any) {
       toast({
-        title: "Serviço finalizado",
-        description: "Você receberá o pagamento em sua carteira",
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmitRating = async () => {
+    if (rating === 0) {
+      toast({
+        title: "Avaliação obrigatória",
+        description: "Por favor, selecione uma avaliação",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/service-requests/${requestId}/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating, comment: comment }),
       });
 
-      setLocation('/');
+      if (!response.ok) throw new Error('Erro ao enviar avaliação');
+
+      toast({
+        title: "Avaliação enviada",
+        description: "Obrigado pelo feedback!",
+      });
+
+      setShowRatingDialog(false);
+      setTimeout(() => setLocation('/'), 1000);
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -342,6 +399,75 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
+        <DialogContent data-testid="dialog-rating">
+          <DialogHeader>
+            <DialogTitle>Avaliar Serviço</DialogTitle>
+            <DialogDescription>
+              Como foi sua experiência com o mecânico?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Avaliação</label>
+              <div className="flex gap-2" data-testid="rating-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="focus:outline-none transition-colors"
+                    data-testid={`star-${star}`}
+                  >
+                    <Star
+                      className={`w-8 h-8 ${
+                        star <= rating
+                          ? 'fill-yellow-500 text-yellow-500'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Comentário (opcional)
+              </label>
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Conte-nos sobre sua experiência..."
+                rows={4}
+                data-testid="input-comment"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSubmitRating}
+                className="flex-1"
+                data-testid="button-submit-rating"
+              >
+                Enviar Avaliação
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRatingDialog(false);
+                  setLocation('/');
+                }}
+                data-testid="button-skip-rating"
+              >
+                Pular
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

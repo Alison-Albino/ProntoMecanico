@@ -103,14 +103,29 @@ function Router() {
         <Route path="/ride/:id/chat">
           {() => {
             const [, params] = useRoute('/ride/:id/chat');
-            return params?.id ? (
-              <div className="h-screen flex flex-col">
-                <div className="flex-1 overflow-auto pb-16">
-                  <ChatPage serviceRequestId={params.id} />
+            const ChatWrapper = () => {
+              const { user, isLoading } = useAuth();
+              const [location] = useLocation();
+              
+              if (isLoading) {
+                return <div className="flex items-center justify-center h-screen">Carregando...</div>;
+              }
+              
+              if (!user) {
+                return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
+              }
+              
+              return (
+                <div className="h-screen flex flex-col">
+                  <div className="flex-1 overflow-auto pb-16">
+                    <ChatPage serviceRequestId={params.id!} />
+                  </div>
+                  <MobileNav />
                 </div>
-                <MobileNav />
-              </div>
-            ) : <Redirect to="/" />;
+              );
+            };
+            
+            return params?.id ? <ChatWrapper /> : <Redirect to="/" />;
           }}
         </Route>
         

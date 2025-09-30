@@ -122,13 +122,9 @@ export class MemStorage implements IStorage {
   async updateUserRating(userId: string, newRating: number): Promise<void> {
     const user = this.users.get(userId);
     if (user) {
-      const currentRating = parseFloat(user.rating || "5");
       const totalRatings = user.totalRatings || 0;
-      const newTotalRatings = totalRatings + 1;
-      const calculatedRating = ((currentRating * totalRatings) + newRating) / newTotalRatings;
-      
-      user.rating = calculatedRating.toFixed(2);
-      user.totalRatings = newTotalRatings;
+      user.rating = newRating.toFixed(2);
+      user.totalRatings = totalRatings + 1;
       this.users.set(userId, user);
     }
   }

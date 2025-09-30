@@ -20,12 +20,12 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
   const { toast } = useToast();
 
   const { data: messages = [] } = useQuery<any[]>({
-    queryKey: ['/api/chat/messages', serviceRequestId],
+    queryKey: [`/api/chat/messages/${serviceRequestId}`],
     enabled: !!token && !!serviceRequestId,
   });
 
   const { data: serviceRequest } = useQuery<any>({
-    queryKey: ['/api/service-requests', serviceRequestId],
+    queryKey: [`/api/service-requests/${serviceRequestId}`],
     enabled: !!token && !!serviceRequestId,
   });
 
@@ -46,7 +46,7 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/messages', serviceRequestId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/chat/messages/${serviceRequestId}`] });
       setMessage('');
     },
     onError: (error: any) => {
@@ -66,8 +66,8 @@ export default function ChatPage({ serviceRequestId }: ChatPageProps) {
     const handleWebSocketMessage = (event: any) => {
       const data = event.detail;
       
-      if (data.type === 'new_chat_message') {
-        queryClient.invalidateQueries({ queryKey: ['/api/chat/messages', serviceRequestId] });
+      if (data.type === 'new_chat_message' && data.data?.serviceRequestId === serviceRequestId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/chat/messages/${serviceRequestId}`] });
       }
     };
 
