@@ -14,6 +14,8 @@ import ProfilePage from "@/pages/profile";
 import WalletPage from "@/pages/wallet";
 import ActiveRidePage from "@/pages/active-ride";
 import ChatPage from "@/pages/chat";
+import PaymentPage from "@/pages/payment";
+import WaitingPage from "@/pages/waiting";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -96,6 +98,14 @@ function Router() {
           <ProtectedRoute component={ProfilePage} />
         </Route>
         
+        <Route path="/payment">
+          <ProtectedRoute component={PaymentPage} />
+        </Route>
+        
+        <Route path="/waiting/:id">
+          <ProtectedRoute component={WaitingPage} />
+        </Route>
+        
         <Route path="/ride/:id">
           <ProtectedRoute component={ActiveRidePage} />
         </Route>
@@ -115,17 +125,21 @@ function Router() {
                 return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
               }
               
+              if (!params?.id) {
+                return <Redirect to="/" />;
+              }
+              
               return (
                 <div className="h-screen flex flex-col">
                   <div className="flex-1 overflow-auto pb-16">
-                    <ChatPage serviceRequestId={params.id!} />
+                    <ChatPage serviceRequestId={params.id} />
                   </div>
                   <MobileNav />
                 </div>
               );
             };
             
-            return params?.id ? <ChatWrapper /> : <Redirect to="/" />;
+            return <ChatWrapper />;
           }}
         </Route>
         

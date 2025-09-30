@@ -210,43 +210,19 @@ export default function HomePage() {
       return;
     }
 
-    try {
-      const response = await fetch('/api/service-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          clientId: user?.id,
-          serviceType,
-          pickupLat: userLocation.lat.toString(),
-          pickupLng: userLocation.lng.toString(),
-          pickupAddress: address,
-          description: description || undefined,
-        }),
-      });
+    const serviceData = {
+      serviceType,
+      pickupLat: userLocation.lat.toString(),
+      pickupLng: userLocation.lng.toString(),
+      pickupAddress: address,
+      description: description || undefined,
+    };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao criar chamada');
-      }
-
-      toast({
-        title: "Sucesso",
-        description: "Chamada criada com sucesso! Aguardando mecânico aceitar.",
-      });
-      
-      setIsRequestDialogOpen(false);
-      setDescription('');
-    } catch (error: any) {
-      console.error('Error creating request:', error);
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    localStorage.setItem('pendingServiceRequest', JSON.stringify(serviceData));
+    
+    setIsRequestDialogOpen(false);
+    setDescription('');
+    setLocation('/payment');
   };
 
   const handleAcceptRequest = async (requestId: string) => {

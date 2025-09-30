@@ -1,15 +1,33 @@
 import { Link, useLocation } from 'wouter';
-import { Home, History, User, Wallet } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { Home, History, User, Wallet, Navigation } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 export function MobileNav() {
   const [location] = useLocation();
+  const { token, user } = useAuth();
 
-  const navItems = [
+  const { data: activeRequest } = useQuery<any>({
+    queryKey: ['/api/service-requests/active'],
+    enabled: !!token && !!user,
+    refetchInterval: 10000,
+  });
+
+  const baseNavItems = [
     { path: '/', icon: Home, label: 'Início' },
     { path: '/history', icon: History, label: 'Histórico' },
     { path: '/wallet', icon: Wallet, label: 'Carteira' },
     { path: '/profile', icon: User, label: 'Perfil' },
   ];
+
+  const navItems = activeRequest?.id
+    ? [
+        { path: '/', icon: Home, label: 'Início' },
+        { path: `/ride/${activeRequest.id}`, icon: Navigation, label: 'Corrida' },
+        { path: '/history', icon: History, label: 'Histórico' },
+        { path: '/profile', icon: User, label: 'Perfil' },
+      ]
+    : baseNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-50">
