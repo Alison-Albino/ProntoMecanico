@@ -60,6 +60,8 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   const { toast } = useToast();
   const { unreadMessages } = useNotifications();
   const routesLibrary = useMapsLibrary('routes');
+  const prevUnreadCountRef = useRef(0);
+  const isFirstRenderRef = useRef(true);
   
   const unreadCount = unreadMessages[requestId] || 0;
 
@@ -88,6 +90,34 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       loadDirections();
     }
   }, [serviceRequest, routesLibrary, user, otherUser]);
+
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      prevUnreadCountRef.current = unreadCount;
+      return;
+    }
+    
+    if (unreadCount > prevUnreadCountRef.current) {
+      const newMessages = unreadCount - prevUnreadCountRef.current;
+      
+      toast({
+        title: "Nova mensagem",
+        description: `Você recebeu ${newMessages} nova${newMessages > 1 ? 's' : ''} mensagem${newMessages > 1 ? 's' : ''}`,
+        duration: 4000,
+      });
+      
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Nova mensagem no chat', {
+          body: `${newMessages} nova${newMessages > 1 ? 's' : ''} mensagem${newMessages > 1 ? 's' : ''}`,
+          icon: '/icon.png',
+          badge: '/icon.png',
+        });
+      }
+    }
+    
+    prevUnreadCountRef.current = unreadCount;
+  }, [unreadCount, toast]);
 
   useEffect(() => {
     if (mechanicLocation && serviceRequest && user?.userType === 'client') {
