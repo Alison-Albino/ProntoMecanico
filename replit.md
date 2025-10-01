@@ -178,6 +178,18 @@ Preferred communication style: Simple, everyday language.
 - Real-time address validation and coordinate extraction
 - No GPS button - simplified interface like Uber
 
+**External Navigation Integration (Oct 2025):**
+- Mechanics can open navigation in external apps from ActiveRidePage
+- DropdownMenu button with Navigation icon (visible only for mechanics in 'accepted' or 'arrived' status)
+- Two navigation options:
+  - **Waze:** Opens Waze app with route from mechanic base address to client location
+  - **Google Maps:** Opens Google Maps with turn-by-turn directions
+- Route visualization on in-app map shows preview before opening external app
+- Origin point: mechanic's base address (baseLat, baseLng)
+- Destination: client's pickup location (pickupLat, pickupLng)
+- URL format validation and proper parameter encoding
+- Opens in new tab/window with window.open (mobile OS handlers launch native apps)
+
 ## External Dependencies
 
 ### Third-Party Services
