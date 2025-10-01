@@ -32,7 +32,7 @@ interface Transaction {
 }
 
 export default function WalletPage() {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -60,12 +60,12 @@ export default function WalletPage() {
     mutationFn: async (data: typeof bankData) => {
       return await apiRequest('POST', '/api/wallet/bank-data', data);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refreshUser();
       toast({
         title: "Dados bancários atualizados",
         description: "Suas informações foram salvas com sucesso",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
     },
     onError: (error: Error) => {
       toast({
@@ -124,7 +124,7 @@ export default function WalletPage() {
       return;
     }
 
-    if (withdrawMethod === 'pix' && !user?.pixKey) {
+    if (withdrawMethod === 'pix' && !hasPixKey) {
       toast({
         title: "Dados incompletos",
         description: "Configure sua chave PIX na aba Dados Bancários",
@@ -133,7 +133,7 @@ export default function WalletPage() {
       return;
     }
 
-    if (withdrawMethod === 'bank_transfer' && (!user?.bankAccountNumber || !user?.bankName)) {
+    if (withdrawMethod === 'bank_transfer' && !hasBankData) {
       toast({
         title: "Dados incompletos",
         description: "Complete seus dados bancários primeiro",
@@ -145,8 +145,9 @@ export default function WalletPage() {
     requestWithdrawalMutation.mutate({ amount, method: withdrawMethod });
   };
 
-  const hasBankData = user?.bankAccountName && user?.bankAccountNumber && user?.bankName;
-  const hasPixKey = !!user?.pixKey;
+  const hasBankData = (bankData.bankAccountName && bankData.bankAccountNumber && bankData.bankName) || 
+                      (user?.bankAccountName && user?.bankAccountNumber && user?.bankName);
+  const hasPixKey = !!bankData.pixKey || !!user?.pixKey;
 
   return (
     <div className="container max-w-5xl mx-auto p-4 space-y-6">
@@ -229,7 +230,7 @@ export default function WalletPage() {
                         <Alert>
                           <Info className="w-4 h-4" />
                           <AlertDescription>
-                            Chave PIX: {user?.pixKey}
+                            Chave PIX: {bankData.pixKey || user?.pixKey}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -238,7 +239,7 @@ export default function WalletPage() {
                         <Alert>
                           <Info className="w-4 h-4" />
                           <AlertDescription>
-                            {user?.bankName} - Ag: {user?.bankBranch || 'N/A'} - Conta: {user?.bankAccountNumber}
+                            {bankData.bankName || user?.bankName} - Ag: {bankData.bankBranch || user?.bankBranch || 'N/A'} - Conta: {bankData.bankAccountNumber || user?.bankAccountNumber}
                           </AlertDescription>
                         </Alert>
                       )}
