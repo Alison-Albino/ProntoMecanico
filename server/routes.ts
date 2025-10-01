@@ -285,8 +285,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Apenas mecânicos podem ver chamadas pendentes" });
       }
 
-      const requests = await storage.getPendingServiceRequests();
-      res.json(requests);
+      if (!req.user!.baseLat || !req.user!.baseLng) {
+        return res.json([]);
+      }
+
+      const mechanicLat = parseFloat(req.user!.baseLat);
+      const mechanicLng = parseFloat(req.user!.baseLng);
+      const MAX_RADIUS_KM = 50;
+
+      const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      const allRequests = await storage.getPendingServiceRequests();
+      
+      const nearbyRequests = allRequests.filter(request => {
+        const requestLat = parseFloat(request.pickupLat);
+        const requestLng = parseFloat(request.pickupLng);
+        const distance = calculateDistance(mechanicLat, mechanicLng, requestLat, requestLng);
+        return distance <= MAX_RADIUS_KM;
+      });
+
+      res.json(nearbyRequests);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

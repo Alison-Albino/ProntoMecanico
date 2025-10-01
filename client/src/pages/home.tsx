@@ -306,8 +306,10 @@ export default function HomePage() {
   }, [user, setLocation, toast]);
 
   useEffect(() => {
-    getCurrentLocation();
-  }, [token]);
+    if (user?.userType === 'client') {
+      getCurrentLocation();
+    }
+  }, [user, token]);
 
   useEffect(() => {
     if (user?.userType === 'mechanic' && token && isOnline) {
@@ -424,7 +426,7 @@ export default function HomePage() {
     if (user?.baseLat === undefined || user?.baseLat === null || user?.baseLng === undefined || user?.baseLng === null) {
       toast({
         title: "Erro",
-        description: "Configure seu endereço base na página de Carteira antes de aceitar chamadas",
+        description: "Configure seu endereço base na página de Perfil antes de aceitar chamadas",
         variant: "destructive",
       });
       return;
