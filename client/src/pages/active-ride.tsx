@@ -5,6 +5,8 @@ import { APIProvider, Map, AdvancedMarker, useMapsLibrary, useMap } from '@vis.g
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/lib/use-notifications';
+import { Badge } from '@/components/ui/badge';
 import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,7 +57,10 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   const [comment, setComment] = useState('');
   const [otherUser, setOtherUser] = useState<any>(null);
   const { toast } = useToast();
+  const { unreadMessages } = useNotifications();
   const routesLibrary = useMapsLibrary('routes');
+  
+  const unreadCount = unreadMessages[requestId] || 0;
 
   useEffect(() => {
     if (requestId && token) {
@@ -462,8 +467,18 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
                 size="icon"
                 onClick={() => setLocation(`/ride/${requestId}/chat`)}
                 data-testid="button-message"
+                className="relative"
               >
                 <MessageCircle className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                    data-testid="badge-unread-count"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Badge>
+                )}
               </Button>
             </div>
           </CardContent>
