@@ -147,6 +147,13 @@ Preferred communication style: Simple, everyday language.
 - Bank account or PIX key required for withdrawals
 - Transaction history tracking
 - Platform fee calculation (deducted from mechanic earnings)
+- **Admin Withdrawal Processing System:**
+  - Admin panel at `/admin/withdrawals` for manual payout processing
+  - Lists pending withdrawals with mechanic details and bank/PIX information
+  - Admins make manual transfers (PIX/TED) and confirm in system
+  - Status updates from "pending" to "completed" after admin confirmation
+  - Accessible from Profile page via "Processar Saques (Admin)" button
+  - Currently: any authenticated user can access (to be restricted to admin role in future)
 
 ### Maps Integration
 
