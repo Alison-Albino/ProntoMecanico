@@ -87,6 +87,9 @@ export const insertUserSchema = createInsertSchema(users).omit({
   userType: z.enum(["client", "mechanic"], {
     required_error: "Tipo de usuário é obrigatório",
   }),
+  baseAddress: z.string().optional(),
+  baseLat: z.union([z.string(), z.number()]).optional(),
+  baseLng: z.union([z.string(), z.number()]).optional(),
 });
 
 export const loginSchema = z.object({

@@ -76,15 +76,12 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
+    
     const user: User = { 
-      ...insertUser, 
       id,
       isOnline: false,
       currentLat: null,
       currentLng: null,
-      baseAddress: null,
-      baseLat: null,
-      baseLng: null,
       rating: "5.00",
       totalRatings: 0,
       bankAccountName: null,
@@ -94,7 +91,15 @@ export class MemStorage implements IStorage {
       pixKey: null,
       walletBalance: "0.00",
       stripeCustomerId: null,
-      createdAt: new Date()
+      createdAt: new Date(),
+      ...insertUser,
+      baseAddress: insertUser.baseAddress || null,
+      baseLat: insertUser.baseLat !== undefined && insertUser.baseLat !== null
+        ? (typeof insertUser.baseLat === 'number' ? insertUser.baseLat.toString() : insertUser.baseLat)
+        : null,
+      baseLng: insertUser.baseLng !== undefined && insertUser.baseLng !== null
+        ? (typeof insertUser.baseLng === 'number' ? insertUser.baseLng.toString() : insertUser.baseLng)
+        : null,
     };
     this.users.set(id, user);
     return user;
@@ -391,8 +396,8 @@ export class MemStorage implements IStorage {
     );
 
     return withdrawalsWithUser.sort((a, b) => {
-      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
-      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+      const dateA = a.createdAt instanceof Date ? a.createdAt : (a.createdAt ? new Date(a.createdAt) : new Date());
+      const dateB = b.createdAt instanceof Date ? b.createdAt : (b.createdAt ? new Date(b.createdAt) : new Date());
       return dateA.getTime() - dateB.getTime();
     });
   }

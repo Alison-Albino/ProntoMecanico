@@ -133,37 +133,22 @@ function LoginForm() {
           return;
         }
 
-        await register({ username, password, email, fullName, phone, userType });
-        
-        if (userType === 'mechanic' && mechanicAddress && mechanicCoords) {
-          try {
-            const token = localStorage.getItem('auth_token');
-            if (token) {
-              const response = await fetch('/api/user/base-address', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  baseAddress: mechanicAddress,
-                  baseLat: mechanicCoords.lat,
-                  baseLng: mechanicCoords.lng
-                })
-              });
+        const registerData: any = { 
+          username, 
+          password, 
+          email, 
+          fullName, 
+          phone, 
+          userType 
+        };
 
-              if (!response.ok) {
-                throw new Error('Erro ao salvar endereço');
-              }
-            }
-          } catch (error) {
-            toast({
-              title: "Aviso",
-              description: "Endereço pode ser configurado depois no perfil",
-              variant: "default",
-            });
-          }
+        if (userType === 'mechanic' && mechanicAddress && mechanicCoords) {
+          registerData.baseAddress = mechanicAddress;
+          registerData.baseLat = mechanicCoords.lat;
+          registerData.baseLng = mechanicCoords.lng;
         }
+
+        await register(registerData);
         
         setLocation('/');
       }
