@@ -5,13 +5,94 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, MapPin } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
 
-export default function WalletPage() {
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+function AddressAutocomplete({ 
+  onPlaceSelect,
+  value,
+  onChange
+}: { 
+  onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
+  value?: string;
+  onChange?: (value: string) => void;
+}) {
+  const places = useMapsLibrary('places');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [inputValue, setInputValue] = useState(value || '');
+
+  useEffect(() => {
+    if (value !== undefined && value !== inputValue) {
+      setInputValue(value);
+      if (inputRef.current) {
+        inputRef.current.value = value;
+      }
+    }
+  }, [value, inputValue]);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      types: ['address'],
+    };
+
+    autocompleteRef.current = new places.Autocomplete(inputRef.current, options);
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current?.getPlace();
+      if (place?.formatted_address) {
+        setInputValue(place.formatted_address);
+        if (onChange) {
+          onChange(place.formatted_address);
+        }
+      }
+      onPlaceSelect(place || null);
+    });
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [places, onPlaceSelect, onChange]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    if (onChange) {
+      onChange(newValue);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center pointer-events-none">
+        <MapPin className="w-3 h-3 text-primary" />
+      </div>
+      <input
+        ref={inputRef}
+        value={inputValue}
+        onChange={handleInputChange}
+        placeholder="Digite seu endereço base..."
+        data-testid="input-base-address"
+        autoComplete="off"
+        className="flex h-9 w-full rounded-md border border-input bg-background pl-11 pr-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
+    </div>
+  );
+}
+
+function WalletPageContent() {
   const { user, token } = useAuth();
   const { toast } = useToast();
   const [bankData, setBankData] = useState({
@@ -20,6 +101,12 @@ export default function WalletPage() {
     bankName: user?.bankName || '',
     bankBranch: user?.bankBranch || '',
     pixKey: user?.pixKey || '',
+  });
+
+  const [baseAddressData, setBaseAddressData] = useState({
+    baseAddress: user?.baseAddress || '',
+    baseLat: user?.baseLat ? parseFloat(user.baseLat) : 0,
+    baseLng: user?.baseLng ? parseFloat(user.baseLng) : 0,
   });
 
   const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery({
@@ -44,6 +131,35 @@ export default function WalletPage() {
       toast({
         title: "Dados bancários atualizados",
         description: "Suas informações foram salvas com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateBaseAddressMutation = useMutation({
+    mutationFn: async (data: typeof baseAddressData) => {
+      const response = await fetch('/api/user/base-address', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Erro ao atualizar endereço base');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Endereço base atualizado",
+        description: "Seu endereço foi salvo com sucesso",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
     },
@@ -85,9 +201,32 @@ export default function WalletPage() {
     },
   });
 
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
+    if (place?.geometry?.location && place?.formatted_address) {
+      setBaseAddressData({
+        baseAddress: place.formatted_address,
+        baseLat: place.geometry.location.lat(),
+        baseLng: place.geometry.location.lng()
+      });
+    }
+  };
+
   const handleBankDataSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateBankDataMutation.mutate(bankData);
+  };
+
+  const handleBaseAddressSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!baseAddressData.baseAddress || !baseAddressData.baseLat || !baseAddressData.baseLng) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um endereço válido",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateBaseAddressMutation.mutate(baseAddressData);
   };
 
   const handleWithdraw = () => {
@@ -153,13 +292,63 @@ export default function WalletPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={user?.userType === 'mechanic' ? 'bank-data' : 'transactions'}>
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue={user?.userType === 'mechanic' ? 'base-address' : 'transactions'}>
+        <TabsList className={`grid w-full ${user?.userType === 'mechanic' ? 'grid-cols-3' : 'grid-cols-1'}`}>
           {user?.userType === 'mechanic' && (
-            <TabsTrigger value="bank-data" data-testid="tab-bank-data">Dados Bancários</TabsTrigger>
+            <>
+              <TabsTrigger value="base-address" data-testid="tab-base-address">Endereço Base</TabsTrigger>
+              <TabsTrigger value="bank-data" data-testid="tab-bank-data">Dados Bancários</TabsTrigger>
+            </>
           )}
           <TabsTrigger value="transactions" data-testid="tab-transactions">Transações</TabsTrigger>
         </TabsList>
+
+        {user?.userType === 'mechanic' && (
+          <TabsContent value="base-address">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Endereço Base
+                </CardTitle>
+                <CardDescription>
+                  Configure o endereço de onde você atenderá as chamadas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleBaseAddressSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="baseAddress">Seu Endereço</Label>
+                    <AddressAutocomplete
+                      value={baseAddressData.baseAddress}
+                      onChange={(value) => setBaseAddressData({...baseAddressData, baseAddress: value})}
+                      onPlaceSelect={handlePlaceSelect}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Este será o ponto de partida para calcular a distância até o cliente
+                    </p>
+                  </div>
+
+                  {baseAddressData.baseAddress && (
+                    <div className="p-3 bg-muted rounded-md">
+                      <p className="text-sm font-medium">Endereço atual:</p>
+                      <p className="text-sm text-muted-foreground">{baseAddressData.baseAddress}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={updateBaseAddressMutation.isPending || !baseAddressData.baseAddress}
+                    className="w-full"
+                    data-testid="button-save-address"
+                  >
+                    {updateBaseAddressMutation.isPending ? "Salvando..." : "Salvar Endereço"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {user?.userType === 'mechanic' && (
           <TabsContent value="bank-data">
@@ -307,5 +496,17 @@ export default function WalletPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function WalletPage() {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return <div>Erro: Google Maps API key não configurada</div>;
+  }
+
+  return (
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <WalletPageContent />
+    </APIProvider>
   );
 }
