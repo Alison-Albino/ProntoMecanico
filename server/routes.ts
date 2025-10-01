@@ -8,6 +8,7 @@ import {
   insertChatMessageSchema,
   bankDataSchema,
   ratingSchema,
+  baseAddressSchema,
   type User 
 } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -721,6 +722,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const transactions = await storage.getUserTransactions(req.user!.id);
       res.json(transactions);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/user/base-address", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos podem cadastrar endereço base" });
+      }
+
+      const validatedData = baseAddressSchema.parse(req.body);
+      await storage.updateUserBaseAddress(req.user!.id, validatedData);
+
+      res.json({ message: "Endereço base atualizado" });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
