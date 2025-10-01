@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/lib/use-notifications';
 import { Badge } from '@/components/ui/badge';
-import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star } from 'lucide-react';
+import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
@@ -341,6 +342,41 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
     }
   };
 
+  const openInNavigationApp = (app: 'waze' | 'google') => {
+    if (!serviceRequest || !user) return;
+
+    let originLat: string | undefined;
+    let originLng: string | undefined;
+
+    if (user.userType === 'mechanic') {
+      if (!user.baseLat || !user.baseLng) {
+        toast({
+          title: "Erro",
+          description: "Endereço base não configurado",
+          variant: "destructive",
+        });
+        return;
+      }
+      originLat = user.baseLat;
+      originLng = user.baseLng;
+    } else {
+      return;
+    }
+
+    const destLat = serviceRequest.pickupLat;
+    const destLng = serviceRequest.pickupLng;
+
+    let url = '';
+    
+    if (app === 'waze') {
+      url = `https://waze.com/ul?ll=${destLat},${destLng}&navigate=yes&from=${originLat},${originLng}`;
+    } else if (app === 'google') {
+      url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${destLat},${destLng}&travelmode=driving`;
+    }
+
+    window.open(url, '_blank');
+  };
+
   if (!serviceRequest) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -461,6 +497,36 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Finalizar
                 </Button>
+              )}
+
+              {user?.userType === 'mechanic' && (serviceRequest.status === 'accepted' || serviceRequest.status === 'arrived') && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      data-testid="button-navigation"
+                    >
+                      <Navigation className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => openInNavigationApp('waze')}
+                      data-testid="menu-item-waze"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir no Waze
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => openInNavigationApp('google')}
+                      data-testid="menu-item-google"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir no Google Maps
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
               <Button 
