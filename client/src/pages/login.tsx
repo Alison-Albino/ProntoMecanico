@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,90 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
+import { MapPin } from 'lucide-react';
 
-export default function LoginPage() {
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+function AddressAutocomplete({ 
+  onPlaceSelect,
+  value,
+  onChange
+}: { 
+  onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
+  value?: string;
+  onChange?: (value: string) => void;
+}) {
+  const places = useMapsLibrary('places');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [inputValue, setInputValue] = useState(value || '');
+
+  useEffect(() => {
+    if (value !== undefined && value !== inputValue) {
+      setInputValue(value);
+      if (inputRef.current) {
+        inputRef.current.value = value;
+      }
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      types: ['address'],
+    };
+
+    autocompleteRef.current = new places.Autocomplete(inputRef.current, options);
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current?.getPlace();
+      if (place?.formatted_address) {
+        setInputValue(place.formatted_address);
+        if (onChange) {
+          onChange(place.formatted_address);
+        }
+      }
+      onPlaceSelect(place || null);
+    });
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [places, onPlaceSelect, onChange]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    if (onChange) {
+      onChange(newValue);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center pointer-events-none">
+        <MapPin className="w-3 h-3 text-primary" />
+      </div>
+      <input
+        ref={inputRef}
+        value={inputValue}
+        onChange={handleInputChange}
+        placeholder="Digite seu endereço..."
+        data-testid="input-address-mechanic"
+        autoComplete="off"
+        className="flex h-9 w-full rounded-md border border-input bg-background pl-11 pr-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
+    </div>
+  );
+}
+
+function LoginForm() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -16,10 +98,21 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [userType, setUserType] = useState<'client' | 'mechanic'>('client');
   const [isLoading, setIsLoading] = useState(false);
+  const [mechanicAddress, setMechanicAddress] = useState('');
+  const [mechanicCoords, setMechanicCoords] = useState<{ lat: number; lng: number } | null>(null);
   
   const { login, register } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
+    if (place?.geometry?.location) {
+      setMechanicCoords({
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng()
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +121,52 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         await login(username, password);
+        setLocation('/');
       } else {
+        if (userType === 'mechanic' && (!mechanicAddress || !mechanicCoords)) {
+          toast({
+            title: "Erro",
+            description: "Por favor, informe seu endereço base",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         await register({ username, password, email, fullName, phone, userType });
+        
+        if (userType === 'mechanic' && mechanicAddress && mechanicCoords) {
+          try {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+              const response = await fetch('/api/user/base-address', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  baseAddress: mechanicAddress,
+                  baseLat: mechanicCoords.lat,
+                  baseLng: mechanicCoords.lng
+                })
+              });
+
+              if (!response.ok) {
+                throw new Error('Erro ao salvar endereço');
+              }
+            }
+          } catch (error) {
+            toast({
+              title: "Aviso",
+              description: "Endereço pode ser configurado depois no perfil",
+              variant: "default",
+            });
+          }
+        }
+        
+        setLocation('/');
       }
-      setLocation('/');
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -126,6 +261,22 @@ export default function LoginPage() {
                     </Button>
                   </div>
                 </div>
+
+                {userType === 'mechanic' && (
+                  <div>
+                    <Label>Endereço Base</Label>
+                    <div className="mt-2">
+                      <AddressAutocomplete
+                        value={mechanicAddress}
+                        onChange={setMechanicAddress}
+                        onPlaceSelect={handlePlaceSelect}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      De onde você atenderá as chamadas
+                    </p>
+                  </div>
+                )}
               </>
             )}
 
@@ -166,5 +317,17 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return <div>Erro: Google Maps API key não configurada</div>;
+  }
+
+  return (
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+      <LoginForm />
+    </APIProvider>
   );
 }
