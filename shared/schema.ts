@@ -71,7 +71,11 @@ export const transactions = pgTable("transactions", {
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
   description: text("description"),
+  availableAt: timestamp("available_at"),
+  withdrawalMethod: text("withdrawal_method"),
+  withdrawalDetails: text("withdrawal_details"),
   createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -133,6 +137,13 @@ export const baseAddressSchema = z.object({
   baseLng: z.number({ required_error: "Coordenadas são obrigatórias" }),
 });
 
+export const withdrawalSchema = z.object({
+  amount: z.number().positive("Valor deve ser positivo"),
+  method: z.enum(["bank_transfer", "pix"], {
+    required_error: "Método de saque é obrigatório",
+  }),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginData = z.infer<typeof loginSchema>;
@@ -144,3 +155,4 @@ export type Transaction = typeof transactions.$inferSelect;
 export type BankData = z.infer<typeof bankDataSchema>;
 export type Rating = z.infer<typeof ratingSchema>;
 export type BaseAddress = z.infer<typeof baseAddressSchema>;
+export type WithdrawalRequest = z.infer<typeof withdrawalSchema>;

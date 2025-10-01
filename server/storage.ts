@@ -35,9 +35,12 @@ export interface IStorage {
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessages(serviceRequestId: string): Promise<ChatMessage[]>;
   
-  createTransaction(userId: string, type: string, amount: number, description: string, serviceRequestId?: string): Promise<Transaction>;
+  createTransaction(userId: string, type: string, amount: number, description: string, serviceRequestId?: string, availableAt?: Date): Promise<Transaction>;
   getUserTransactions(userId: string): Promise<Transaction[]>;
-  updateTransactionStatus(id: string, status: string): Promise<void>;
+  getAvailableBalance(userId: string): Promise<number>;
+  getPendingBalance(userId: string): Promise<number>;
+  updateTransactionStatus(id: string, status: string, completedAt?: Date): Promise<void>;
+  createWithdrawalRequest(userId: string, amount: number, method: string, details: string): Promise<Transaction>;
 }
 
 export class MemStorage implements IStorage {
@@ -271,7 +274,8 @@ export class MemStorage implements IStorage {
     type: string, 
     amount: number, 
     description: string, 
-    serviceRequestId?: string
+    serviceRequestId?: string,
+    availableAt?: Date
   ): Promise<Transaction> {
     const id = randomUUID();
     const transaction: Transaction = {
@@ -280,9 +284,13 @@ export class MemStorage implements IStorage {
       serviceRequestId: serviceRequestId || null,
       type,
       amount: amount.toFixed(2),
-      status: "completed",
+      status: "pending",
       description,
+      availableAt: availableAt || null,
+      withdrawalMethod: null,
+      withdrawalDetails: null,
       createdAt: new Date(),
+      completedAt: null,
     };
     this.transactions.set(id, transaction);
     return transaction;
@@ -298,12 +306,74 @@ export class MemStorage implements IStorage {
       });
   }
 
-  async updateTransactionStatus(id: string, status: string): Promise<void> {
+  async updateTransactionStatus(id: string, status: string, completedAt?: Date): Promise<void> {
     const transaction = this.transactions.get(id);
     if (transaction) {
       transaction.status = status;
+      if (completedAt) {
+        transaction.completedAt = completedAt;
+      }
       this.transactions.set(id, transaction);
     }
+  }
+
+  async getAvailableBalance(userId: string): Promise<number> {
+    const now = new Date();
+    const transactions = await this.getUserTransactions(userId);
+    
+    const availableTransactions = transactions.filter(t => 
+      t.status === "completed" && 
+      (t.type === "mechanic_earnings" || t.type === "refund") &&
+      (!t.availableAt || t.availableAt <= now)
+    );
+    
+    const withdrawals = transactions.filter(t => 
+      t.type === "withdrawal" && 
+      (t.status === "completed" || t.status === "pending")
+    );
+    
+    const totalEarnings = availableTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    
+    return totalEarnings - totalWithdrawals;
+  }
+
+  async getPendingBalance(userId: string): Promise<number> {
+    const now = new Date();
+    const transactions = await this.getUserTransactions(userId);
+    
+    const pendingTransactions = transactions.filter(t => 
+      t.status === "completed" &&
+      (t.type === "mechanic_earnings" || t.type === "refund") &&
+      t.availableAt && t.availableAt > now
+    );
+    
+    return pendingTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  }
+
+  async createWithdrawalRequest(
+    userId: string, 
+    amount: number, 
+    method: string, 
+    details: string
+  ): Promise<Transaction> {
+    const id = randomUUID();
+    const transaction: Transaction = {
+      id,
+      userId,
+      serviceRequestId: null,
+      type: "withdrawal",
+      amount: (-amount).toFixed(2),
+      status: "pending",
+      description: `Saque via ${method === 'pix' ? 'PIX' : 'Transferência Bancária'}`,
+      availableAt: null,
+      withdrawalMethod: method,
+      withdrawalDetails: details,
+      createdAt: new Date(),
+      completedAt: null,
+    };
+    this.transactions.set(id, transaction);
+    return transaction;
   }
 }
 

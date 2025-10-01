@@ -400,11 +400,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { distance } = req.body;
-      const distanceFee = distance * 6;
       const baseFee = 50;
+      const distanceFee = distance * 6;
       const totalPrice = baseFee + distanceFee;
-      const platformFee = totalPrice * 0.10;
-      const mechanicEarnings = totalPrice - platformFee;
+      const platformFee = distanceFee * 0.10;
+      const mechanicEarnings = baseFee + (distanceFee - platformFee);
 
       const updated = await storage.updateServiceRequest(req.params.id, {
         mechanicId: req.user!.id,
@@ -422,16 +422,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!updated) {
         return res.status(404).json({ message: "Erro ao atualizar chamada" });
       }
-
-      await storage.updateWalletBalance(req.user!.id, mechanicEarnings);
-
-      await storage.createTransaction(
-        req.user!.id,
-        'earning',
-        mechanicEarnings,
-        `Ganho do serviço - ${updated.serviceType} (Distância: ${distance.toFixed(1)}km)`,
-        req.params.id
-      );
 
       broadcastToUser(request.clientId, {
         type: 'service_request_accepted',
@@ -510,10 +500,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Chamada não está em andamento" });
       }
 
+      const completedAt = new Date();
       const updated = await storage.updateServiceRequest(req.params.id, {
         status: 'completed',
-        completedAt: new Date(),
+        completedAt,
       });
+
+      if (request.mechanicId && request.mechanicEarnings) {
+        const availableAt = new Date(completedAt.getTime() + 12 * 60 * 60 * 1000);
+        
+        await storage.createTransaction(
+          request.mechanicId,
+          'mechanic_earnings',
+          parseFloat(request.mechanicEarnings),
+          `Ganho do serviço - ${request.serviceType} (${parseFloat(request.distance || '0').toFixed(1)}km)`,
+          req.params.id,
+          availableAt
+        );
+        
+        await storage.updateTransactionStatus(
+          req.params.id,
+          'completed',
+          completedAt
+        );
+      }
 
       if (isClient && request.mechanicId) {
         broadcastToUser(request.mechanicId, {
@@ -785,6 +795,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/wallet/balance", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas mecânicos têm carteira" });
+      }
+
+      const availableBalance = await storage.getAvailableBalance(req.user!.id);
+      const pendingBalance = await storage.getPendingBalance(req.user!.id);
+
+      res.json({
+        available: availableBalance,
+        pending: pendingBalance,
+        total: availableBalance + pendingBalance,
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   app.post("/api/wallet/withdraw", authMiddleware, async (req, res) => {
     try {
       if (req.user!.userType !== 'mechanic') {
@@ -797,24 +826,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!user.bankAccountName || !user.bankAccountNumber || !user.bankName) {
-        return res.status(400).json({ message: "Complete seus dados bancários primeiro" });
+        if (!user.pixKey) {
+          return res.status(400).json({ message: "Complete seus dados bancários ou PIX primeiro" });
+        }
       }
 
-      const balance = parseFloat(user.walletBalance || "0");
-      if (balance <= 0) {
-        return res.status(400).json({ message: "Saldo insuficiente" });
+      const { amount, method } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Valor inválido" });
       }
 
-      await storage.createTransaction(
+      const availableBalance = await storage.getAvailableBalance(user.id);
+      
+      if (availableBalance < amount) {
+        return res.status(400).json({ 
+          message: `Saldo disponível insuficiente. Você tem R$ ${availableBalance.toFixed(2)} disponível.` 
+        });
+      }
+
+      let withdrawalDetails = '';
+      if (method === 'pix' && user.pixKey) {
+        withdrawalDetails = `PIX: ${user.pixKey}`;
+      } else if (method === 'bank_transfer') {
+        withdrawalDetails = `${user.bankName} - Ag: ${user.bankBranch || 'N/A'} - Conta: ${user.bankAccountNumber} - ${user.bankAccountName}`;
+      } else {
+        return res.status(400).json({ message: "Método de saque inválido ou dados bancários incompletos" });
+      }
+
+      await storage.createWithdrawalRequest(
         user.id,
-        'withdrawal',
-        balance,
-        `Saque para ${user.bankName} - ${user.bankAccountNumber}`
+        amount,
+        method,
+        withdrawalDetails
       );
 
-      await storage.updateWalletBalance(user.id, -balance);
-
-      res.json({ message: "Saque solicitado com sucesso" });
+      res.json({ 
+        message: "Saque solicitado com sucesso! Processaremos em até 2 dias úteis.",
+        amount 
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

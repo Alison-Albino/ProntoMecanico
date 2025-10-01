@@ -5,15 +5,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useState } from 'react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+interface BalanceData {
+  available: number;
+  pending: number;
+  total: number;
+}
+
+interface Transaction {
+  id: string;
+  type: string;
+  amount: string;
+  description: string;
+  status: string;
+  availableAt: string | null;
+  createdAt: string;
+  withdrawalMethod: string | null;
+  withdrawalDetails: string | null;
+}
 
 export default function WalletPage() {
   const { user, token } = useAuth();
   const { toast } = useToast();
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState('pix');
+  
   const [bankData, setBankData] = useState({
     bankAccountName: user?.bankAccountName || '',
     bankAccountNumber: user?.bankAccountNumber || '',
@@ -22,23 +46,19 @@ export default function WalletPage() {
     pixKey: user?.pixKey || '',
   });
 
-  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery({
+  const { data: balance, isLoading: isLoadingBalance } = useQuery<BalanceData>({
+    queryKey: ['/api/wallet/balance'],
+    enabled: !!token && user?.userType === 'mechanic',
+  });
+
+  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
     queryKey: ['/api/wallet/transactions'],
     enabled: !!token,
   });
 
   const updateBankDataMutation = useMutation({
     mutationFn: async (data: typeof bankData) => {
-      const response = await fetch('/api/wallet/bank-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error('Erro ao atualizar dados bancários');
-      return response.json();
+      return await apiRequest('POST', '/api/wallet/bank-data', data);
     },
     onSuccess: () => {
       toast({
@@ -57,23 +77,17 @@ export default function WalletPage() {
   });
 
   const requestWithdrawalMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/wallet/withdraw', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error('Erro ao solicitar saque');
-      return response.json();
+    mutationFn: async ({ amount, method }: { amount: number; method: string }) => {
+      return await apiRequest('POST', '/api/wallet/withdraw', { amount, method });
     },
     onSuccess: () => {
       toast({
         title: "Saque solicitado",
-        description: "Seu saque está sendo processado",
+        description: "Seu saque está sendo processado e será transferido em até 2 dias úteis",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      setIsWithdrawDialogOpen(false);
+      setWithdrawAmount('');
+      queryClient.invalidateQueries({ queryKey: ['/api/wallet/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/wallet/transactions'] });
     },
     onError: (error: Error) => {
@@ -90,20 +104,49 @@ export default function WalletPage() {
     updateBankDataMutation.mutate(bankData);
   };
 
-  const handleWithdraw = () => {
-    if (!user?.bankAccountName || !user?.bankAccountNumber || !user?.bankName) {
+  const handleWithdrawSubmit = () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!amount || amount <= 0) {
       toast({
-        title: "Dados bancários incompletos",
-        description: "Complete seus dados bancários para solicitar saque",
+        title: "Valor inválido",
+        description: "Digite um valor válido para saque",
         variant: "destructive",
       });
       return;
     }
-    requestWithdrawalMutation.mutate();
+
+    if (!balance || amount > balance.available) {
+      toast({
+        title: "Saldo insuficiente",
+        description: `Você tem apenas R$ ${balance?.available.toFixed(2)} disponível`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (withdrawMethod === 'pix' && !user?.pixKey) {
+      toast({
+        title: "Dados incompletos",
+        description: "Configure sua chave PIX na aba Dados Bancários",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (withdrawMethod === 'bank_transfer' && (!user?.bankAccountNumber || !user?.bankName)) {
+      toast({
+        title: "Dados incompletos",
+        description: "Complete seus dados bancários primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    requestWithdrawalMutation.mutate({ amount, method: withdrawMethod });
   };
 
-  const walletBalance = parseFloat(user?.walletBalance || "0");
   const hasBankData = user?.bankAccountName && user?.bankAccountNumber && user?.bankName;
+  const hasPixKey = !!user?.pixKey;
 
   return (
     <div className="container max-w-5xl mx-auto p-4 space-y-6">
@@ -115,51 +158,243 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" />
-            Saldo Disponível
-          </CardTitle>
-          <CardDescription>
-            {user?.userType === 'mechanic' 
-              ? "Seus ganhos já com desconto de 10% da plataforma"
-              : "Seu saldo atual"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-4xl font-bold text-green-600" data-testid="text-balance">
-                R$ {walletBalance.toFixed(2)}
-              </p>
-              {user?.userType === 'mechanic' && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Disponível para saque
+      {user?.userType === 'mechanic' && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-600" />
+                Saldo Disponível
+              </CardTitle>
+              <CardDescription>
+                Disponível para saque agora
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-4xl font-bold text-green-600" data-testid="text-available-balance">
+                  {isLoadingBalance ? '...' : `R$ ${balance?.available.toFixed(2) || '0.00'}`}
                 </p>
-              )}
-            </div>
-            {user?.userType === 'mechanic' && walletBalance > 0 && (
-              <Button
-                onClick={handleWithdraw}
-                disabled={!hasBankData || requestWithdrawalMutation.isPending}
-                size="lg"
-                data-testid="button-withdraw"
-              >
-                {requestWithdrawalMutation.isPending ? "Processando..." : "Solicitar Saque"}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                
+                <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      disabled={!balance || balance.available <= 0 || (!hasBankData && !hasPixKey)}
+                      className="w-full"
+                      size="lg"
+                      data-testid="button-request-withdraw"
+                    >
+                      Solicitar Saque
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Solicitar Saque</DialogTitle>
+                      <DialogDescription>
+                        Informe o valor e o método de transferência
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <Label htmlFor="withdraw-amount">Valor do Saque</Label>
+                        <Input
+                          id="withdraw-amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          placeholder="0.00"
+                          data-testid="input-withdraw-amount"
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Disponível: R$ {balance?.available.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
 
-      <Tabs defaultValue={user?.userType === 'mechanic' ? 'bank-data' : 'transactions'}>
+                      <div>
+                        <Label htmlFor="withdraw-method">Método de Transferência</Label>
+                        <Select value={withdrawMethod} onValueChange={setWithdrawMethod}>
+                          <SelectTrigger data-testid="select-withdraw-method">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix" disabled={!hasPixKey}>PIX {!hasPixKey && '(Configure primeiro)'}</SelectItem>
+                            <SelectItem value="bank_transfer" disabled={!hasBankData}>Transferência Bancária {!hasBankData && '(Configure primeiro)'}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {withdrawMethod === 'pix' && hasPixKey && (
+                        <Alert>
+                          <Info className="w-4 h-4" />
+                          <AlertDescription>
+                            Chave PIX: {user?.pixKey}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {withdrawMethod === 'bank_transfer' && hasBankData && (
+                        <Alert>
+                          <Info className="w-4 h-4" />
+                          <AlertDescription>
+                            {user?.bankName} - Ag: {user?.bankBranch || 'N/A'} - Conta: {user?.bankAccountNumber}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <Button 
+                        onClick={handleWithdrawSubmit}
+                        disabled={requestWithdrawalMutation.isPending}
+                        className="w-full"
+                        data-testid="button-submit-withdraw"
+                      >
+                        {requestWithdrawalMutation.isPending ? "Processando..." : "Confirmar Saque"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-600" />
+                Saldo Pendente
+              </CardTitle>
+              <CardDescription>
+                Disponível em até 12h após conclusão
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold text-orange-600" data-testid="text-pending-balance">
+                {isLoadingBalance ? '...' : `R$ ${balance?.pending.toFixed(2) || '0.00'}`}
+              </p>
+              <Alert className="mt-4">
+                <AlertCircle className="w-4 h-4" />
+                <AlertDescription className="text-xs">
+                  Valores de serviços concluídos ficam disponíveis para saque 12 horas após a finalização
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Tabs defaultValue={user?.userType === 'mechanic' ? 'transactions' : 'transactions'}>
         <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="transactions" data-testid="tab-transactions">Transações</TabsTrigger>
           {user?.userType === 'mechanic' && (
             <TabsTrigger value="bank-data" data-testid="tab-bank-data">Dados Bancários</TabsTrigger>
           )}
-          <TabsTrigger value="transactions" data-testid="tab-transactions">Transações</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="transactions">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Histórico de Transações
+              </CardTitle>
+              <CardDescription>
+                Todas as suas transações e saques
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTransactions ? (
+                <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+              ) : transactions.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">Nenhuma transação ainda</p>
+              ) : (
+                <div className="space-y-3">
+                  {transactions.map((transaction) => {
+                    const amount = parseFloat(transaction.amount);
+                    const isEarning = transaction.type === 'mechanic_earnings';
+                    const isWithdrawal = transaction.type === 'withdrawal';
+                    const isPending = transaction.status === 'pending';
+                    const availableDate = transaction.availableAt ? new Date(transaction.availableAt) : null;
+                    const isAvailable = !availableDate || availableDate <= new Date();
+
+                    return (
+                      <div 
+                        key={transaction.id} 
+                        className="flex items-center justify-between p-4 border rounded-lg hover-elevate" 
+                        data-testid={`transaction-${transaction.id}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2 rounded-full ${
+                            isEarning ? 'bg-green-100' : 
+                            isWithdrawal ? 'bg-blue-100' : 'bg-gray-100'
+                          }`}>
+                            {isEarning ? (
+                              <TrendingUp className="w-4 h-4 text-green-600" />
+                            ) : isWithdrawal ? (
+                              <WalletIcon className="w-4 h-4 text-blue-600" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-gray-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">{transaction.description}</p>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(transaction.createdAt).toLocaleString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                              {availableDate && !isAvailable && (
+                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                                  Disponível em {availableDate.toLocaleString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                            {isWithdrawal && transaction.withdrawalDetails && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {transaction.withdrawalDetails}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-lg font-bold ${
+                            isEarning ? 'text-green-600' : isWithdrawal ? 'text-blue-600' : 'text-gray-600'
+                          }`} data-testid={`transaction-amount-${transaction.id}`}>
+                            {amount > 0 ? '+' : ''}R$ {Math.abs(amount).toFixed(2)}
+                          </p>
+                          <div className="flex items-center gap-1 text-sm">
+                            {isPending ? (
+                              <>
+                                <Clock className="w-3 h-3 text-orange-500" />
+                                <span className="text-orange-500">Pendente</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-3 h-3 text-green-600" />
+                                <span className="text-green-600">Concluído</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {user?.userType === 'mechanic' && (
           <TabsContent value="bank-data">
@@ -167,7 +402,7 @@ export default function WalletPage() {
               <CardHeader>
                 <CardTitle>Dados Bancários</CardTitle>
                 <CardDescription>
-                  Adicione seus dados bancários para receber os pagamentos
+                  Configure seus dados para receber saques via transferência ou PIX
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -190,7 +425,7 @@ export default function WalletPage() {
                         id="bankName"
                         value={bankData.bankName}
                         onChange={(e) => setBankData({...bankData, bankName: e.target.value})}
-                        placeholder="Ex: Banco do Brasil"
+                        placeholder="Ex: Banco do Brasil, Caixa, Itaú"
                         data-testid="input-bank-name"
                         required
                       />
@@ -207,7 +442,7 @@ export default function WalletPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bankBranch">Agência</Label>
+                      <Label htmlFor="bankBranch">Agência (Opcional)</Label>
                       <Input
                         id="bankBranch"
                         value={bankData.bankBranch}
@@ -222,9 +457,12 @@ export default function WalletPage() {
                         id="pixKey"
                         value={bankData.pixKey}
                         onChange={(e) => setBankData({...bankData, pixKey: e.target.value})}
-                        placeholder="email@exemplo.com ou CPF"
+                        placeholder="email@exemplo.com, CPF, telefone ou chave aleatória"
                         data-testid="input-pix-key"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Configure PIX ou transferência bancária para receber saques
+                      </p>
                     </div>
                   </div>
                   <Button
@@ -239,72 +477,6 @@ export default function WalletPage() {
             </Card>
           </TabsContent>
         )}
-
-        <TabsContent value="transactions">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Histórico de Transações
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingTransactions ? (
-                <p className="text-center py-8 text-muted-foreground">Carregando...</p>
-              ) : !Array.isArray(transactions) || transactions.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nenhuma transação ainda</p>
-              ) : (
-                <div className="space-y-4">
-                  {(transactions as any[]).map((transaction: any) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg" data-testid={`transaction-${transaction.id}`}>
-                      <div className="flex items-center gap-4">
-                        <div className={`p-2 rounded-full ${
-                          transaction.type === 'earning' ? 'bg-green-100' : 
-                          transaction.type === 'withdrawal' ? 'bg-blue-100' : 'bg-gray-100'
-                        }`}>
-                          {transaction.type === 'earning' ? (
-                            <TrendingUp className="w-4 h-4 text-green-600" />
-                          ) : transaction.type === 'withdrawal' ? (
-                            <WalletIcon className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <Clock className="w-4 h-4 text-gray-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium">{transaction.description}</p>
-                          <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            {new Date(transaction.createdAt).toLocaleString('pt-BR')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          transaction.type === 'earning' ? 'text-green-600' : 'text-blue-600'
-                        }`}>
-                          {transaction.type === 'earning' ? '+' : '-'}R$ {parseFloat(transaction.amount).toFixed(2)}
-                        </p>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          {transaction.status === 'completed' ? (
-                            <>
-                              <CheckCircle className="w-3 h-3 text-green-600" />
-                              Concluído
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-3 h-3" />
-                              Pendente
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
