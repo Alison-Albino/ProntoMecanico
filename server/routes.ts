@@ -870,5 +870,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/withdrawals", authMiddleware, async (req, res) => {
+    try {
+      const withdrawals = await storage.getPendingWithdrawals();
+      res.json(withdrawals);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/withdrawals/:id/complete", authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.completeWithdrawal(id);
+      res.json({ message: "Saque confirmado com sucesso!" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }

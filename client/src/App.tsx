@@ -18,6 +18,7 @@ import ActiveRidePage from "@/pages/active-ride";
 import ChatPage from "@/pages/chat";
 import PaymentPage from "@/pages/payment";
 import WaitingPage from "@/pages/waiting";
+import AdminWithdrawalsPage from "@/pages/admin-withdrawals";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -128,6 +129,10 @@ function Router() {
         
         <Route path="/ride/:id/chat">
           <ProtectedRoute component={ChatPage} />
+        </Route>
+        
+        <Route path="/admin/withdrawals">
+          <ProtectedRoute component={AdminWithdrawalsPage} />
         </Route>
         
         <Route component={NotFound} />

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, User, Mail, Phone, Star, ArrowLeft, Bell, BellOff, MapPin } from 'lucide-react';
+import { LogOut, User, Mail, Phone, Star, ArrowLeft, Bell, BellOff, MapPin, Shield } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNotifications } from '@/lib/use-notifications';
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
@@ -376,7 +376,16 @@ function ProfilePageContent() {
             <CardHeader>
               <CardTitle>Ações</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setLocation('/admin/withdrawals')}
+                data-testid="button-admin-withdrawals"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Processar Saques (Admin)
+              </Button>
               <Button
                 variant="destructive"
                 className="w-full"

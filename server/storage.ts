@@ -41,6 +41,8 @@ export interface IStorage {
   getPendingBalance(userId: string): Promise<number>;
   updateTransactionStatus(id: string, status: string, completedAt?: Date): Promise<void>;
   createWithdrawalRequest(userId: string, amount: number, method: string, details: string): Promise<Transaction>;
+  getPendingWithdrawals(): Promise<Array<Transaction & { user: User }>>;
+  completeWithdrawal(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -374,6 +376,44 @@ export class MemStorage implements IStorage {
     };
     this.transactions.set(id, transaction);
     return transaction;
+  }
+
+  async getPendingWithdrawals(): Promise<Array<Transaction & { user: User }>> {
+    const withdrawals = Array.from(this.transactions.values()).filter(
+      t => t.type === "withdrawal" && t.status === "pending"
+    );
+
+    const withdrawalsWithUser = await Promise.all(
+      withdrawals.map(async (withdrawal) => {
+        const user = await this.getUser(withdrawal.userId);
+        return { ...withdrawal, user: user! };
+      })
+    );
+
+    return withdrawalsWithUser.sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }
+
+  async completeWithdrawal(id: string): Promise<void> {
+    const transaction = this.transactions.get(id);
+    if (!transaction) {
+      throw new Error("Transação não encontrada");
+    }
+
+    if (transaction.type !== "withdrawal") {
+      throw new Error("Esta não é uma transação de saque");
+    }
+
+    if (transaction.status !== "pending") {
+      throw new Error("Este saque já foi processado");
+    }
+
+    transaction.status = "completed";
+    transaction.completedAt = new Date();
+    this.transactions.set(id, transaction);
   }
 }
 
