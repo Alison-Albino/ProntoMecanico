@@ -97,9 +97,19 @@ Preferred communication style: Simple, everyday language.
 
 **Financial Transactions:**
 - Transaction history for wallet operations
-- Type classification (payment, withdrawal, refund)
+- Type classification (mechanic_earnings, platform_fee, withdrawal, refund)
 - Status tracking (pending, completed, failed)
 - Service request association
+- **12-Hour Availability Delay System:**
+  - Earnings from completed services are marked with an `availableAt` timestamp (12 hours after service completion)
+  - Saldo Pendente: earnings that haven't reached their `availableAt` time yet
+  - Saldo Disponível: earnings that have passed their `availableAt` time and can be withdrawn
+- **Withdrawal System:**
+  - Two withdrawal methods: PIX and bank transfer
+  - Full bank account details stored (bank name, account number, branch, account holder name)
+  - Withdrawal requests include method and destination details
+  - Processing time: up to 2 business days
+  - Withdrawal transactions store method and destination details for audit trail
 
 ### Real-Time Communication
 
