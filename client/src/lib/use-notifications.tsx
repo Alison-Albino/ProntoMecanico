@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { useAuth } from './auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
+import { useLocation } from 'wouter';
 
 interface UnreadMessages {
   [serviceRequestId: string]: number;
@@ -20,6 +21,7 @@ const NotificationsContext = createContext<NotificationsContextType | null>(null
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [unreadMessages, setUnreadMessages] = useState<UnreadMessages>({});
   const [hasNotificationPermission, setHasNotificationPermission] = useState(
     typeof Notification !== 'undefined' && Notification.permission === 'granted'
@@ -81,11 +83,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
       notification.onclick = () => {
         window.focus();
-        window.location.href = `/ride/${serviceRequestId}/chat`;
+        setLocation(`/ride/${serviceRequestId}/chat`);
         notification.close();
       };
     }
-  }, []);
+  }, [setLocation]);
 
   useEffect(() => {
     if (!user) return;
@@ -115,7 +117,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
                 <ToastAction 
                   altText="Ver mensagem" 
                   onClick={() => {
-                    window.location.href = `/ride/${serviceRequestId}/chat`;
+                    setLocation(`/ride/${serviceRequestId}/chat`);
                   }}
                 >
                   Ver
