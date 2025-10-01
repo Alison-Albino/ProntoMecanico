@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { WebSocketProvider } from "@/lib/websocket";
+import { NotificationsProvider } from "@/lib/use-notifications";
 import { MobileNav } from "@/components/mobile-nav";
 import OnboardingPage from "@/pages/onboarding";
 import LoginPage from "@/pages/login";
@@ -140,10 +141,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
         <AuthProvider>
-          <TooltipProvider>
-            <Router />
-            <Toaster />
-          </TooltipProvider>
+          <NotificationsProvider>
+            <TooltipProvider>
+              <Router />
+              <Toaster />
+            </TooltipProvider>
+          </NotificationsProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
