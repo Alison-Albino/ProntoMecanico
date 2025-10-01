@@ -128,12 +128,15 @@ Preferred communication style: Simple, everyday language.
 
 **GPS Precision System:**
 - Progressive accuracy improvement using `watchPosition` API
-- Rejects IP-based locations (requires <500m accuracy)
+- **REJECTS completely** IP/WiFi-based locations (accuracy > 500m are discarded)
+- Only accepts true GPS readings with accuracy ≤ 500m
 - Real-time feedback: Precise (<30m), Good (30-100m), Acceptable (100-500m)
+- Shows rejection messages for IP-based attempts with attempt counter
 - Automatic cleanup on dialog close and component unmount
 - Protection against memory leaks with ref-based watch/timeout management
-- Maximum 30-second timeout with up to 10 position readings
+- Maximum 30-second timeout with up to 10 position attempts
 - Guard against multiple simultaneous GPS requests
+- Falls back to manual address input if only IP-based locations available
 
 ## External Dependencies
 

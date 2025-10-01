@@ -182,6 +182,27 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
       const accuracy = position.coords.accuracy;
       attempts++;
       
+      // REJEITA localizações baseadas em IP/WiFi (precisão > 500m)
+      if (accuracy > 500) {
+        // Não aceita, apenas mostra feedback
+        toast({
+          title: "❌ Localização Rejeitada",
+          description: `Precisão ${Math.round(accuracy)}m é muito baixa (IP/WiFi). Buscando GPS real... (${attempts}/10)`,
+          duration: 2000,
+        });
+        
+        // Para após 10 tentativas se nunca conseguir GPS real
+        if (attempts >= 10 && !hasFoundLocation) {
+          stopWatch();
+          toast({
+            title: "GPS Não Disponível",
+            description: "Apenas localizações imprecisas encontradas. Por favor, digite o endereço manualmente.",
+            variant: "destructive",
+          });
+        }
+        return; // NÃO usa essa leitura
+      }
+      
       // Se a precisão está melhorando, atualiza
       if (accuracy < bestAccuracy) {
         bestAccuracy = accuracy;
@@ -204,18 +225,13 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
           }).catch(console.error);
         }
         
-        // Primeira localização encontrada
+        // Primeira localização VÁLIDA encontrada
         if (!hasFoundLocation) {
           hasFoundLocation = true;
           
-          if (accuracy > 500) {
+          if (accuracy > 100) {
             toast({
-              title: "Localização Imprecisa Obtida",
-              description: `Precisão: ${Math.round(accuracy)}m (pode ser rede). Continuando busca por GPS real...`,
-            });
-          } else if (accuracy > 100) {
-            toast({
-              title: "GPS Obtido - Refinando",
+              title: "✓ GPS Obtido - Refinando",
               description: `Precisão atual: ${Math.round(accuracy)}m. Buscando melhor sinal...`,
             });
           } else if (accuracy > 30) {
@@ -247,8 +263,8 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
           }
         }
         
-        // Para após 10 leituras mesmo sem precisão ideal
-        if (attempts >= 10) {
+        // Para após 10 leituras VÁLIDAS
+        if (attempts >= 10 && hasFoundLocation) {
           stopWatch();
           toast({
             title: "GPS Finalizado",
