@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   isOnline: boolean("is_online").default(false),
   currentLat: decimal("current_lat", { precision: 10, scale: 7 }),
   currentLng: decimal("current_lng", { precision: 10, scale: 7 }),
+  baseAddress: text("base_address"),
+  baseLat: decimal("base_lat", { precision: 10, scale: 7 }),
+  baseLng: decimal("base_lng", { precision: 10, scale: 7 }),
   rating: decimal("rating", { precision: 3, scale: 2 }).default("5.00"),
   totalRatings: integer("total_ratings").default(0),
   bankAccountName: text("bank_account_name"),
@@ -124,6 +127,12 @@ export const ratingSchema = z.object({
   comment: z.string().optional(),
 });
 
+export const baseAddressSchema = z.object({
+  baseAddress: z.string().min(1, "Endereço é obrigatório"),
+  baseLat: z.number({ required_error: "Coordenadas são obrigatórias" }),
+  baseLng: z.number({ required_error: "Coordenadas são obrigatórias" }),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginData = z.infer<typeof loginSchema>;
@@ -134,3 +143,4 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type BankData = z.infer<typeof bankDataSchema>;
 export type Rating = z.infer<typeof ratingSchema>;
+export type BaseAddress = z.infer<typeof baseAddressSchema>;
