@@ -126,17 +126,13 @@ Preferred communication style: Simple, everyday language.
 - Directions API for route path rendering
 - API key configuration via environment variable (VITE_GOOGLE_MAPS_API_KEY)
 
-**GPS Precision System:**
-- Progressive accuracy improvement using `watchPosition` API
-- **REJECTS completely** IP/WiFi-based locations (accuracy > 500m are discarded)
-- Only accepts true GPS readings with accuracy ≤ 500m
-- Real-time feedback: Precise (<30m), Good (30-100m), Acceptable (100-500m)
-- Shows rejection messages for IP-based attempts with attempt counter
-- Automatic cleanup on dialog close and component unmount
-- Protection against memory leaks with ref-based watch/timeout management
-- Maximum 30-second timeout with up to 10 position attempts
-- Guard against multiple simultaneous GPS requests
-- Falls back to manual address input if only IP-based locations available
+**Address Input System (Uber-style):**
+- Google Places Autocomplete for address search
+- Fully typeable input with autocomplete suggestions
+- Manual text entry with automatic geocoding fallback
+- Country restriction to Brazil (BR)
+- Real-time address validation and coordinate extraction
+- No GPS button - simplified interface like Uber
 
 ## External Dependencies
 
