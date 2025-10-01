@@ -8,18 +8,21 @@ import { Send, ArrowLeft, Star, User as UserIcon } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useLocation } from 'wouter';
+import { useLocation, useRoute, Redirect } from 'wouter';
 
-interface ChatPageProps {
-  serviceRequestId: string;
-}
-
-export default function ChatPage({ serviceRequestId }: ChatPageProps) {
+export default function ChatPage() {
   const { user, token } = useAuth();
   const [message, setMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [, params] = useRoute('/ride/:id/chat');
+  
+  const serviceRequestId = params?.id;
+  
+  if (!serviceRequestId) {
+    return <Redirect to="/" />;
+  }
 
   const { data: messages = [] } = useQuery<any[]>({
     queryKey: ['/api/chat/messages', serviceRequestId],

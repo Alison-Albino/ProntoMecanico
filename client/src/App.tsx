@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useLocation, useRoute } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -126,36 +126,7 @@ function Router() {
         </Route>
         
         <Route path="/ride/:id/chat">
-          {() => {
-            const [, params] = useRoute('/ride/:id/chat');
-            const ChatWrapper = () => {
-              const { user, isLoading } = useAuth();
-              const [location] = useLocation();
-              
-              if (isLoading) {
-                return <div className="flex items-center justify-center h-screen">Carregando...</div>;
-              }
-              
-              if (!user) {
-                return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
-              }
-              
-              if (!params?.id) {
-                return <Redirect to="/" />;
-              }
-              
-              return (
-                <div className="h-screen flex flex-col">
-                  <div className="flex-1 overflow-auto pb-16">
-                    <ChatPage serviceRequestId={params.id} />
-                  </div>
-                  <MobileNav />
-                </div>
-              );
-            };
-            
-            return <ChatWrapper />;
-          }}
+          <ProtectedRoute component={ChatPage} />
         </Route>
         
         <Route component={NotFound} />
