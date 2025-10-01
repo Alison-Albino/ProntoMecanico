@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, User, Mail, Phone, Star, ArrowLeft } from 'lucide-react';
+import { LogOut, User, Mail, Phone, Star, ArrowLeft, Bell, BellOff } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useNotifications } from '@/lib/use-notifications';
 
 export default function ProfilePage() {
   const [, params] = useRoute('/profile/:id');
   const { user: currentUser, token, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const { requestNotificationPermission, hasNotificationPermission } = useNotifications();
   
   const userId = params?.id;
   const isOwnProfile = !userId || userId === currentUser?.id;
@@ -139,22 +141,65 @@ export default function ProfilePage() {
       </Card>
 
       {isOwnProfile && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Ações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={handleLogout}
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Notificações</CardTitle>
+              <CardDescription>
+                Receba alertas de novas mensagens no chat
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {hasNotificationPermission ? (
+                    <Bell className="w-5 h-5 text-primary" />
+                  ) : (
+                    <BellOff className="w-5 h-5 text-muted-foreground" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {hasNotificationPermission ? 'Notificações ativadas' : 'Notificações desativadas'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {hasNotificationPermission 
+                        ? 'Você receberá notificações de novas mensagens'
+                        : 'Ative para receber alertas no navegador'
+                      }
+                    </p>
+                  </div>
+                </div>
+                {!hasNotificationPermission && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={requestNotificationPermission}
+                    data-testid="button-enable-notifications"
+                  >
+                    Ativar
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Ações</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={handleLogout}
+                data-testid="button-logout"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </Button>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
