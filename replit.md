@@ -29,6 +29,7 @@ Preferred communication style: Simple, everyday language.
 **Key Frontend Patterns:**
 - Context-based authentication (AuthProvider) managing user sessions with JWT tokens stored in localStorage
 - WebSocket provider for real-time updates (service requests, location tracking, chat messages)
+- Notifications system with unread message tracking, toast and browser notifications
 - Custom hooks for mobile detection, toast notifications, and form validation
 - Protected routes using authentication guard components
 
@@ -99,6 +100,15 @@ Preferred communication style: Simple, everyday language.
   - Mechanic arrival notifications
 - Client-side event listeners using custom events
 - Automatic reconnection on token refresh
+
+**Notifications System:**
+- NotificationsProvider context managing unread message state
+- Unread message badges displayed on chat buttons (ActiveRidePage and MobileNav)
+- Toast notifications when new messages arrive (suppressed when on chat page)
+- Browser notifications with click-to-navigate functionality
+- Permission management in ProfilePage settings
+- Messages automatically marked as read when ChatPage opens
+- Uses wouter navigation for all notification actions (no page reloads)
 
 ### Payment Integration
 
