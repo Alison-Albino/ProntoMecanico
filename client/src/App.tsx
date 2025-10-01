@@ -21,6 +21,7 @@ import WaitingPage from "@/pages/waiting";
 import AdminWithdrawalsPage from "@/pages/admin-withdrawals";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element }) {
   const { user, isLoading } = useAuth();
@@ -69,6 +70,7 @@ function ActiveRideRedirect() {
 function Router() {
   const { user, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
     const onboardingCompleted = localStorage.getItem('onboarding_completed');
@@ -76,6 +78,19 @@ function Router() {
       setLocation('/onboarding');
     }
   }, [user, location, setLocation]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      toast({
+        title: "Sessão expirada",
+        description: "Por favor, faça login novamente para continuar",
+        variant: "destructive",
+      });
+    };
+
+    window.addEventListener('session-expired', handleSessionExpired);
+    return () => window.removeEventListener('session-expired', handleSessionExpired);
+  }, [toast]);
 
   if (isLoading) {
     return (

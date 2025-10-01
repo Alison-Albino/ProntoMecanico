@@ -56,6 +56,9 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+let last401Time = 0;
+const TOAST_COOLDOWN = 10000;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -70,3 +73,23 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+queryClient.getQueryCache().config.onError = (error: any) => {
+  if (error?.message?.includes('401')) {
+    const now = Date.now();
+    if (now - last401Time > TOAST_COOLDOWN) {
+      last401Time = now;
+      window.dispatchEvent(new CustomEvent('session-expired'));
+    }
+  }
+};
+
+queryClient.getMutationCache().config.onError = (error: any) => {
+  if (error?.message?.includes('401')) {
+    const now = Date.now();
+    if (now - last401Time > TOAST_COOLDOWN) {
+      last401Time = now;
+      window.dispatchEvent(new CustomEvent('session-expired'));
+    }
+  }
+};
