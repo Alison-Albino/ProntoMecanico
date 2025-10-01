@@ -79,10 +79,14 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   }, [serviceRequest, user]);
 
   useEffect(() => {
-    if (serviceRequest && mechanicLocation && routesLibrary) {
+    if (!serviceRequest || !routesLibrary) return;
+    
+    if (user?.userType === 'mechanic' && user.baseLat !== undefined && user.baseLat !== null && user.baseLng !== undefined && user.baseLng !== null) {
+      loadDirections();
+    } else if (user?.userType === 'client' && otherUser?.baseLat !== undefined && otherUser?.baseLat !== null && otherUser?.baseLng !== undefined && otherUser?.baseLng !== null) {
       loadDirections();
     }
-  }, [serviceRequest, mechanicLocation, routesLibrary]);
+  }, [serviceRequest, routesLibrary, user, otherUser]);
 
   useEffect(() => {
     if (mechanicLocation && serviceRequest && user?.userType === 'client') {
@@ -141,11 +145,12 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
         if (user?.userType === 'client') {
           setOtherUser(mechanic);
         }
-        if (mechanic.currentLat && mechanic.currentLng) {
-          setMechanicLocation({
-            lat: parseFloat(mechanic.currentLat),
-            lng: parseFloat(mechanic.currentLng),
-          });
+        if (mechanic.currentLat != null && mechanic.currentLng != null) {
+          const lat = parseFloat(mechanic.currentLat);
+          const lng = parseFloat(mechanic.currentLng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setMechanicLocation({ lat, lng });
+          }
         }
       }
     } catch (error) {
@@ -193,13 +198,28 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
   };
 
   const loadDirections = async () => {
-    if (!mechanicLocation || !serviceRequest || !routesLibrary) return;
+    if (!serviceRequest || !routesLibrary) return;
+
+    let originLat: number | undefined;
+    let originLng: number | undefined;
+
+    if (user?.userType === 'mechanic') {
+      if (user.baseLat === undefined || user.baseLat === null || user.baseLng === undefined || user.baseLng === null) return;
+      originLat = parseFloat(user.baseLat);
+      originLng = parseFloat(user.baseLng);
+    } else if (user?.userType === 'client') {
+      if (otherUser?.baseLat === undefined || otherUser?.baseLat === null || otherUser?.baseLng === undefined || otherUser?.baseLng === null) return;
+      originLat = parseFloat(otherUser.baseLat);
+      originLng = parseFloat(otherUser.baseLng);
+    }
+
+    if (originLat === undefined || originLng === undefined || isNaN(originLat) || isNaN(originLng)) return;
 
     try {
       const directionsService = new routesLibrary.DirectionsService();
       
       const result = await directionsService.route({
-        origin: new google.maps.LatLng(mechanicLocation.lat, mechanicLocation.lng),
+        origin: new google.maps.LatLng(originLat, originLng),
         destination: new google.maps.LatLng(
           parseFloat(serviceRequest.pickupLat),
           parseFloat(serviceRequest.pickupLng)

@@ -421,10 +421,10 @@ export default function HomePage() {
   };
 
   const handleAcceptRequest = async (requestId: string) => {
-    if (!userLocation) {
+    if (user?.baseLat === undefined || user?.baseLat === null || user?.baseLng === undefined || user?.baseLng === null) {
       toast({
         title: "Erro",
-        description: "Localização não disponível",
+        description: "Configure seu endereço base na página de Carteira antes de aceitar chamadas",
         variant: "destructive",
       });
       return;
@@ -435,8 +435,8 @@ export default function HomePage() {
       if (!request) return;
 
       const distance = calculateDistance(
-        userLocation.lat,
-        userLocation.lng,
+        parseFloat(user.baseLat),
+        parseFloat(user.baseLng),
         parseFloat(request.pickupLat),
         parseFloat(request.pickupLng)
       );

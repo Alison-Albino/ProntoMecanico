@@ -218,7 +218,7 @@ function WalletPageContent() {
 
   const handleBaseAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!baseAddressData.baseAddress || !baseAddressData.baseLat || !baseAddressData.baseLng) {
+    if (!baseAddressData.baseAddress || baseAddressData.baseLat === undefined || baseAddressData.baseLng === undefined) {
       toast({
         title: "Erro",
         description: "Por favor, selecione um endereço válido",
