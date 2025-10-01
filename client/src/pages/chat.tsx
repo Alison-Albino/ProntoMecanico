@@ -9,6 +9,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation, useRoute, Redirect } from 'wouter';
+import { useNotifications } from '@/lib/use-notifications';
 
 export default function ChatPage() {
   const { user, token } = useAuth();
@@ -17,12 +18,19 @@ export default function ChatPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [, params] = useRoute('/ride/:id/chat');
+  const { markAsRead } = useNotifications();
   
   const serviceRequestId = params?.id;
   
   if (!serviceRequestId) {
     return <Redirect to="/" />;
   }
+
+  useEffect(() => {
+    if (serviceRequestId) {
+      markAsRead(serviceRequestId);
+    }
+  }, [serviceRequestId, markAsRead]);
 
   const { data: messages = [] } = useQuery<any[]>({
     queryKey: ['/api/chat/messages', serviceRequestId],

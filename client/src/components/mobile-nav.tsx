@@ -2,16 +2,21 @@ import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth-context';
 import { Home, History, User, Wallet, Navigation, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useNotifications } from '@/lib/use-notifications';
+import { Badge } from '@/components/ui/badge';
 
 export function MobileNav() {
   const [location] = useLocation();
   const { token, user } = useAuth();
+  const { unreadMessages } = useNotifications();
 
   const { data: activeRequest } = useQuery<any>({
     queryKey: ['/api/service-requests/active'],
     enabled: !!token && !!user,
     refetchInterval: 10000,
   });
+  
+  const unreadCount = activeRequest?.id ? (unreadMessages[activeRequest.id] || 0) : 0;
 
   const baseNavItems = [
     { path: '/', icon: Home, label: 'Início' },
@@ -36,6 +41,8 @@ export function MobileNav() {
           const Icon = item.icon;
           const isActive = location === item.path;
           
+          const isChatItem = item.label === 'Chat';
+          
           return (
             <Link
               key={item.path}
@@ -43,13 +50,24 @@ export function MobileNav() {
               data-testid={`link-nav-${item.label.toLowerCase()}`}
             >
               <button
-                className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+                className={`flex flex-col items-center justify-center w-16 h-full gap-1 relative ${
                   isActive
                     ? 'text-primary'
                     : 'text-muted-foreground hover-elevate'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <div className="relative">
+                  <Icon className="w-5 h-5" />
+                  {isChatItem && unreadCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
+                      data-testid="badge-mobile-nav-unread"
+                    >
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Badge>
+                  )}
+                </div>
                 <span className="text-xs">{item.label}</span>
               </button>
             </Link>
