@@ -6,7 +6,8 @@ import {
   type ChatMessage,
   type InsertChatMessage,
   type Transaction,
-  type BankData
+  type BankData,
+  type BaseAddress
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -17,6 +18,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserLocation(userId: string, lat: number, lng: number): Promise<void>;
   updateUserOnlineStatus(userId: string, isOnline: boolean): Promise<void>;
+  updateUserBaseAddress(userId: string, addressData: BaseAddress): Promise<void>;
   updateUserBankData(userId: string, bankData: BankData): Promise<void>;
   updateUserRating(userId: string, rating: number): Promise<void>;
   updateWalletBalance(userId: string, amount: number): Promise<void>;
@@ -75,6 +77,9 @@ export class MemStorage implements IStorage {
       isOnline: false,
       currentLat: null,
       currentLng: null,
+      baseAddress: null,
+      baseLat: null,
+      baseLng: null,
       rating: "5.00",
       totalRatings: 0,
       bankAccountName: null,
@@ -103,6 +108,16 @@ export class MemStorage implements IStorage {
     const user = this.users.get(userId);
     if (user) {
       user.isOnline = isOnline;
+      this.users.set(userId, user);
+    }
+  }
+
+  async updateUserBaseAddress(userId: string, addressData: BaseAddress): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.baseAddress = addressData.baseAddress;
+      user.baseLat = addressData.baseLat.toString();
+      user.baseLng = addressData.baseLng.toString();
       this.users.set(userId, user);
     }
   }
