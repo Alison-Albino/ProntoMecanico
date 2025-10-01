@@ -62,12 +62,22 @@ Preferred communication style: Simple, everyday language.
 
 **User Management:**
 - Users table with dual user types (client/mechanic)
-- Location tracking fields (currentLat, currentLng)
+- Location tracking fields (currentLat, currentLng) for real-time GPS tracking
+- Base address system for mechanics (baseAddress, baseLat, baseLng) - used for distance/price calculations
 - Online status tracking
 - Rating system with average and total counts
 - Bank account information for withdrawals (account name, number, bank, PIX key)
 - Wallet balance for mechanics
 - Stripe customer integration
+
+**Mechanic Base Address System:**
+- Mechanics must configure their base address during registration or in the Wallet page
+- Base address is captured using Google Places Autocomplete (Brazil-only)
+- All distance and price calculations use the mechanic's base address as the origin point
+- Route visualization on maps shows from base address to client location
+- Mechanics cannot accept service requests without a configured base address
+- Base address can be updated at any time via the "Endereço Base" tab in Wallet page
+- System properly handles edge cases including zero coordinates (equator/Greenwich meridian)
 
 **Service Requests:**
 - Complete service lifecycle tracking (pending → accepted → completed/cancelled)
