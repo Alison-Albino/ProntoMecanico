@@ -80,6 +80,11 @@ Preferred communication style: Simple, everyday language.
 - System properly handles edge cases including zero coordinates (equator/Greenwich meridian)
 - Backend filters pending service requests to show only those within 50km radius of mechanic's base address
 - GPS location is only required for clients (to show nearby mechanics), not for mechanics to receive requests
+- **Registration Flow (Fixed Oct 2025):**
+  - Base address data now sent during initial registration (not separate API call)
+  - Backend properly preserves baseAddress/baseLat/baseLng including zero values
+  - Schema accepts optional base address fields (string | number)
+  - Storage normalizes coordinates to strings consistently
 
 **Service Requests:**
 - Complete service lifecycle tracking (pending → accepted → completed/cancelled)
