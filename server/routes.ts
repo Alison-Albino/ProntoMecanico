@@ -87,6 +87,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  async function broadcastToAllMechanics(data: any, excludeUserId?: string) {
+    const allUsers = await storage.getAllUsers();
+    const mechanics = allUsers.filter(u => 
+      u.userType === 'mechanic' && 
+      u.isOnline && 
+      u.id !== excludeUserId
+    );
+    
+    mechanics.forEach(mechanic => {
+      const client = clients.get(mechanic.id);
+      if (client && client.readyState === 1) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+
   app.post("/api/auth/register", async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
@@ -439,6 +455,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'service_request_started',
         data: updated,
       });
+
+      await broadcastToAllMechanics({
+        type: 'service_request_accepted_by_other',
+        data: { id: req.params.id },
+      }, req.user!.id);
 
       res.json(updated);
     } catch (error: any) {

@@ -38,6 +38,10 @@ export function MechanicHome() {
           variant: "destructive",
         });
       }
+
+      if (data.type === 'service_request_accepted_by_other' && data.data) {
+        setPendingRequests(prev => prev.filter(req => req.id !== data.data.id));
+      }
     };
 
     window.addEventListener('websocket-message', handleWebSocketMessage);

@@ -15,6 +15,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUserLocation(userId: string, lat: number, lng: number): Promise<void>;
   updateUserOnlineStatus(userId: string, isOnline: boolean): Promise<void>;
@@ -72,6 +73,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(
       (user) => user.email === email,
     );
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -222,6 +227,7 @@ export class MemStorage implements IStorage {
       acceptedAt: null,
       completedAt: null,
       arrivedAt: null,
+      cancelledAt: null,
     };
     this.serviceRequests.set(id, request);
     return request;
