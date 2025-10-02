@@ -71,7 +71,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const showBrowserNotification = useCallback((title: string, body: string, serviceRequestId: string) => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+      return;
+    }
+
+    if (typeof document !== 'undefined' && !document.hidden) {
+      return;
+    }
+
+    try {
       const notification = new Notification(title, {
         body,
         icon: '/icon-192x192.png',
@@ -81,11 +89,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         silent: false,
       });
 
-      notification.onclick = () => {
+      notification.onclick = (e) => {
+        e.preventDefault();
         window.focus();
         setLocation(`/ride/${serviceRequestId}/chat`);
         notification.close();
       };
+
+      setTimeout(() => {
+        notification.close();
+      }, 5000);
+    } catch (error) {
+      console.error('Erro ao mostrar notificação:', error);
     }
   }, [setLocation]);
 
@@ -113,8 +128,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         
         if (messageData.senderId !== user.id) {
           const isOnChatPage = window.location.pathname === `/ride/${serviceRequestId}/chat`;
+          const isOnActivePage = window.location.pathname === `/ride/${serviceRequestId}`;
           
-          if (!isOnChatPage) {
+          if (!isOnChatPage && !isOnActivePage) {
             setUnreadMessages(prev => ({
               ...prev,
               [serviceRequestId]: (prev[serviceRequestId] || 0) + 1

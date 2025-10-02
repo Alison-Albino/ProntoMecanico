@@ -36,6 +36,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 2, 2025 - Mobile Notification Fix:**
+- **Black Screen Fix:** Browser notifications now only trigger when app is in background (document.hidden)
+- **Auto-dismiss:** Notifications automatically close after 5 seconds
+- **Error Handling:** Added try-catch to prevent notification errors from breaking the app
+- **Page Detection:** Improved detection to prevent notifications when user is on active ride or chat pages
+
 **October 2, 2025 - Privacy & Display Enhancements:**
 - **First Name Only:** Chat and service requests now display only the first name of users (not full name)
 - **Private Data Protection:** Email, phone, and CPF/CNPJ are hidden from public profile views
