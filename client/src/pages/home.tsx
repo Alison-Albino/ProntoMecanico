@@ -41,6 +41,19 @@ function ClientHome() {
   const handlePaymentNext = async (paymentData: PaymentData) => {
     if (!addressData || !serviceData) return;
 
+    if (paymentData.method === 'pix') {
+      localStorage.setItem('pendingServiceRequest', JSON.stringify({
+        pickupLat: addressData.lat.toString(),
+        pickupLng: addressData.lng.toString(),
+        pickupAddress: addressData.address,
+        serviceType: serviceData.type,
+        description: serviceData.description || undefined,
+      }));
+      
+      setLocationPath('/payment');
+      return;
+    }
+
     setIsCreatingRequest(true);
 
     try {
@@ -70,16 +83,10 @@ function ClientHome() {
 
       toast({
         title: 'Solicitação criada!',
-        description: paymentData.method === 'pix' 
-          ? 'Aguarde enquanto procuramos um mecânico...'
-          : 'Procurando mecânicos disponíveis...',
+        description: 'Procurando mecânicos disponíveis...',
       });
 
-      if (paymentData.method === 'pix') {
-        setLocationPath(`/payment/${serviceRequest.id}`);
-      } else {
-        setLocationPath(`/ride/${serviceRequest.id}`);
-      }
+      setLocationPath(`/ride/${serviceRequest.id}`);
     } catch (error: any) {
       console.error('Error creating request:', error);
       toast({

@@ -680,7 +680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         qrCode: payment.qrCode,
         qrCodeBase64: payment.qrCodeBase64,
-        paymentId: payment.paymentId,
+        paymentId: payment.id,
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
@@ -785,43 +785,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      try {
-        const payout = await createPixPayout(
-          amount,
-          user.pixKey,
-          user.pixKeyType,
-          `Saque via PIX - ${user.fullName}`
-        );
+      const payout = await createPixPayout(
+        amount,
+        user.pixKey,
+        user.pixKeyType,
+        `Saque via PIX - ${user.fullName}`
+      );
 
-        await storage.createWithdrawalRequest(
-          user.id,
-          amount,
-          'pix',
-          `PIX: ${user.pixKey}`,
-          payout.id
-        );
+      await storage.createWithdrawalRequest(
+        user.id,
+        amount,
+        'pix',
+        `PIX: ${user.pixKey} (${user.pixKeyType})`,
+        payout.id
+      );
 
-        res.json({ 
-          message: "Saque PIX processado com sucesso! O valor será creditado em instantes.",
-          amount,
-          pixKey: user.pixKey
-        });
-      } catch (payoutError: any) {
-        console.error('Erro ao processar saque PIX:', payoutError);
-        
-        await storage.createWithdrawalRequest(
-          user.id,
-          amount,
-          'pix',
-          `PIX: ${user.pixKey}`,
-          undefined,
-          'failed'
-        );
-
-        return res.status(500).json({ 
-          message: "Erro ao processar saque PIX. Tente novamente ou entre em contato com o suporte." 
-        });
-      }
+      res.json({ 
+        message: "Saque solicitado com sucesso! Processaremos em até 2 dias úteis.",
+        amount,
+        pixKey: user.pixKey
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

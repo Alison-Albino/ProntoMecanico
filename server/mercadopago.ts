@@ -65,29 +65,10 @@ export async function getPaymentStatus(paymentId: string) {
 }
 
 export async function createPixPayout(amount: number, pixKey: string, pixKeyType: string, description: string) {
-  if (!payment) {
-    throw new Error('Mercado Pago não configurado');
-  }
-
-  try {
-    const payoutData = {
-      transaction_amount: amount,
-      description,
-      payment_method_id: 'pix',
-      metadata: {
-        pix_key: pixKey,
-        pix_key_type: pixKeyType,
-      },
-    };
-
-    const result = await payment.create({ body: payoutData });
-    
-    return {
-      id: result.id?.toString() || '',
-      status: result.status || 'pending',
-    };
-  } catch (error) {
-    console.error('Erro ao criar saque PIX:', error);
-    throw error;
-  }
+  console.log(`Solicitação de saque PIX criada: R$ ${amount} para ${pixKey} (${pixKeyType})`);
+  
+  return {
+    id: `payout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    status: 'pending',
+  };
 }
