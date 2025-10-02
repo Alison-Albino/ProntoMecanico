@@ -89,6 +89,7 @@ export class MemStorage implements IStorage {
       bankName: null,
       bankBranch: null,
       pixKey: null,
+      pixKeyType: null,
       walletBalance: "0.00",
       stripeCustomerId: null,
       createdAt: new Date(),
@@ -140,6 +141,7 @@ export class MemStorage implements IStorage {
       user.bankName = bankData.bankName;
       user.bankBranch = bankData.bankBranch || null;
       user.pixKey = bankData.pixKey || null;
+      user.pixKeyType = bankData.pixKeyType || null;
       this.users.set(userId, user);
     }
   }
@@ -209,7 +211,11 @@ export class MemStorage implements IStorage {
       platformFee: null,
       mechanicEarnings: null,
       paymentStatus: "pending",
+      paymentMethod: "card",
       paymentIntentId: null,
+      pixQrCode: null,
+      pixPaymentId: null,
+      pixExpiration: null,
       rating: null,
       ratingComment: null,
       createdAt: new Date(),
@@ -296,6 +302,10 @@ export class MemStorage implements IStorage {
       availableAt: availableAt || null,
       withdrawalMethod: null,
       withdrawalDetails: null,
+      pixQrCode: null,
+      pixPaymentId: null,
+      pixExpiration: null,
+      pixType: null,
       createdAt: new Date(),
       completedAt: null,
     };
@@ -376,6 +386,10 @@ export class MemStorage implements IStorage {
       availableAt: null,
       withdrawalMethod: method,
       withdrawalDetails: details,
+      pixQrCode: null,
+      pixPaymentId: null,
+      pixExpiration: null,
+      pixType: method === 'pix' ? 'withdrawal' : null,
       createdAt: new Date(),
       completedAt: null,
     };

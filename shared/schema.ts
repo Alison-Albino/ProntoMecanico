@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   bankName: text("bank_name"),
   bankBranch: text("bank_branch"),
   pixKey: text("pix_key"),
+  pixKeyType: text("pix_key_type"),
   walletBalance: decimal("wallet_balance", { precision: 10, scale: 2 }).default("0.00"),
   stripeCustomerId: text("stripe_customer_id"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -46,7 +47,11 @@ export const serviceRequests = pgTable("service_requests", {
   platformFee: decimal("platform_fee", { precision: 10, scale: 2 }),
   mechanicEarnings: decimal("mechanic_earnings", { precision: 10, scale: 2 }),
   paymentStatus: text("payment_status").default("pending"),
+  paymentMethod: text("payment_method").default("card"),
   paymentIntentId: text("payment_intent_id"),
+  pixQrCode: text("pix_qr_code"),
+  pixPaymentId: text("pix_payment_id"),
+  pixExpiration: timestamp("pix_expiration"),
   rating: integer("rating"),
   ratingComment: text("rating_comment"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -74,6 +79,10 @@ export const transactions = pgTable("transactions", {
   availableAt: timestamp("available_at"),
   withdrawalMethod: text("withdrawal_method"),
   withdrawalDetails: text("withdrawal_details"),
+  pixQrCode: text("pix_qr_code"),
+  pixPaymentId: text("pix_payment_id"),
+  pixExpiration: timestamp("pix_expiration"),
+  pixType: text("pix_type"),
   createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at"),
 });
@@ -127,6 +136,7 @@ export const bankDataSchema = z.object({
   bankName: z.string().min(1, "Nome do banco é obrigatório"),
   bankBranch: z.string().optional(),
   pixKey: z.string().optional(),
+  pixKeyType: z.enum(["cpf", "cnpj", "email", "phone", "random"]).optional(),
 });
 
 export const ratingSchema = z.object({
@@ -145,6 +155,15 @@ export const withdrawalSchema = z.object({
   method: z.enum(["bank_transfer", "pix"], {
     required_error: "Método de saque é obrigatório",
   }),
+  pixKey: z.string().optional(),
+  pixKeyType: z.enum(["cpf", "cnpj", "email", "phone", "random"]).optional(),
+});
+
+export const paymentMethodSchema = z.object({
+  method: z.enum(["card", "pix"], {
+    required_error: "Método de pagamento é obrigatório",
+  }),
+  serviceRequestId: z.string(),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -159,3 +178,4 @@ export type BankData = z.infer<typeof bankDataSchema>;
 export type Rating = z.infer<typeof ratingSchema>;
 export type BaseAddress = z.infer<typeof baseAddressSchema>;
 export type WithdrawalRequest = z.infer<typeof withdrawalSchema>;
+export type PaymentMethodSelection = z.infer<typeof paymentMethodSchema>;
