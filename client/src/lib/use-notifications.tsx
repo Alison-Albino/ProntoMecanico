@@ -92,6 +92,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     if (!user) return;
 
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          setHasNotificationPermission(true);
+        }
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
     const handleWebSocketMessage = (event: any) => {
       const data = event.detail;
       
@@ -137,7 +149,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
     window.addEventListener('websocket-message', handleWebSocketMessage);
     return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
-  }, [user, toast, showBrowserNotification]);
+  }, [user, toast, showBrowserNotification, setLocation]);
 
   return (
     <NotificationsContext.Provider
