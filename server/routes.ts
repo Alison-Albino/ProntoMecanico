@@ -13,7 +13,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
-import { createPixPayment, getPaymentStatus, createPixPayout, simulatePaymentApproval } from "./mercadopago";
+import { createPixPayment, getPaymentStatus, createPixPayout, simulatePaymentApproval, createPixRefund } from "./mercadopago";
 
 declare global {
   namespace Express {
@@ -477,6 +477,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/service-requests/:id/cancel", authMiddleware, async (req, res) => {
+    try {
+      const request = await storage.getServiceRequest(req.params.id);
+      
+      if (!request) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (request.clientId !== req.user!.id) {
+        return res.status(403).json({ message: "Apenas o cliente pode cancelar" });
+      }
+
+      if (request.status === 'completed' || request.status === 'cancelled') {
+        return res.status(400).json({ message: "Chamada já foi finalizada" });
+      }
+
+      let refundCreated = false;
+      
+      if (request.pixPaymentId && request.paymentStatus === 'approved') {
+        try {
+          const refund = await createPixRefund(
+            request.pixPaymentId,
+            parseFloat(request.totalPrice || '0')
+          );
+          
+          console.log(`✅ Reembolso criado: ${refund.id} para pagamento ${request.pixPaymentId}`);
+          refundCreated = true;
+
+          await storage.createTransaction(
+            request.clientId,
+            'refund',
+            parseFloat(request.totalPrice || '0'),
+            `Reembolso - ${request.serviceType} (Cancelado)`,
+            req.params.id
+          );
+        } catch (error) {
+          console.error('Erro ao criar reembolso:', error);
+        }
+      }
+
+      const updated = await storage.updateServiceRequest(req.params.id, {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+      });
+
+      if (request.mechanicId) {
+        broadcastToUser(request.mechanicId, {
+          type: 'service_request_cancelled',
+          data: updated,
+        });
+      }
+
+      res.json({ 
+        ...updated, 
+        refundCreated,
+        message: refundCreated ? 'Chamada cancelada e reembolso processado' : 'Chamada cancelada'
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

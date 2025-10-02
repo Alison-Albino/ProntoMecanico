@@ -93,12 +93,17 @@ export default function WaitingPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao cancelar chamada');
+        const error = await response.json();
+        throw new Error(error.message || 'Erro ao cancelar chamada');
       }
+
+      const result = await response.json();
 
       toast({
         title: "Chamada cancelada",
-        description: "Sua chamada foi cancelada",
+        description: result.refundCreated 
+          ? "✅ Reembolso processado automaticamente via PIX" 
+          : "Sua chamada foi cancelada",
       });
       
       setLocation('/');

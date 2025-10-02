@@ -81,6 +81,45 @@ export function simulatePaymentApproval(paymentId: string) {
   console.log(`✅ Pagamento ${paymentId} aprovado (SIMULADO)`);
 }
 
+export async function createPixRefund(paymentId: string, amount?: number) {
+  const isTestMode = process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('TEST') || 
+                     process.env.NODE_ENV === 'development';
+  
+  if (isTestMode) {
+    console.log(`✅ Reembolso simulado: Pagamento ${paymentId} - R$ ${amount || 'total'}`);
+    return {
+      id: `refund_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      status: 'approved',
+      amount: amount || 0,
+    };
+  }
+
+  if (!payment) {
+    throw new Error('Mercado Pago não configurado');
+  }
+
+  try {
+    const refundData: any = {};
+    if (amount) {
+      refundData.amount = amount;
+    }
+
+    const result = await payment.refund({
+      id: paymentId,
+      body: refundData,
+    });
+    
+    return {
+      id: result.id?.toString() || '',
+      status: result.status || 'pending',
+      amount: result.amount || 0,
+    };
+  } catch (error) {
+    console.error('Erro ao criar reembolso:', error);
+    throw error;
+  }
+}
+
 export async function createPixPayout(amount: number, pixKey: string, pixKeyType: string, description: string) {
   console.log(`Solicitação de saque PIX criada: R$ ${amount} para ${pixKey} (${pixKeyType})`);
   

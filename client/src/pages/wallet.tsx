@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, AlertCircle, Info, XCircle, ArrowDownToLine, ArrowUpFromLine, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 interface BalanceData {
   available: number;
@@ -35,6 +36,7 @@ export default function WalletPage() {
   const { user, token, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
+  const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawMethod, setWithdrawMethod] = useState('pix');
   
@@ -44,6 +46,7 @@ export default function WalletPage() {
     bankName: user?.bankName || '',
     bankBranch: user?.bankBranch || '',
     pixKey: user?.pixKey || '',
+    pixKeyType: user?.pixKeyType || 'email',
   });
 
   const { data: balance, isLoading: isLoadingBalance } = useQuery<BalanceData>({
@@ -62,9 +65,10 @@ export default function WalletPage() {
     },
     onSuccess: async () => {
       await refreshUser();
+      setIsBankDialogOpen(false);
       toast({
-        title: "Dados bancários atualizados",
-        description: "Suas informações foram salvas com sucesso",
+        title: "Dados salvos",
+        description: "Suas informações foram atualizadas com sucesso",
       });
     },
     onError: (error: Error) => {
@@ -83,7 +87,7 @@ export default function WalletPage() {
     onSuccess: () => {
       toast({
         title: "Saque solicitado",
-        description: "Seu saque está sendo processado e será transferido em até 2 dias úteis",
+        description: "Processaremos em até 2 dias úteis",
       });
       setIsWithdrawDialogOpen(false);
       setWithdrawAmount('');
@@ -127,16 +131,7 @@ export default function WalletPage() {
     if (withdrawMethod === 'pix' && !hasPixKey) {
       toast({
         title: "Dados incompletos",
-        description: "Configure sua chave PIX na aba Dados Bancários",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (withdrawMethod === 'bank_transfer' && !hasBankData) {
-      toast({
-        title: "Dados incompletos",
-        description: "Complete seus dados bancários primeiro",
+        description: "Configure sua chave PIX primeiro",
         variant: "destructive",
       });
       return;
@@ -145,339 +140,392 @@ export default function WalletPage() {
     requestWithdrawalMutation.mutate({ amount, method: withdrawMethod });
   };
 
-  const hasBankData = (bankData.bankAccountName && bankData.bankAccountNumber && bankData.bankName) || 
-                      (user?.bankAccountName && user?.bankAccountNumber && user?.bankName);
   const hasPixKey = !!bankData.pixKey || !!user?.pixKey;
 
-  return (
-    <div className="container max-w-5xl mx-auto p-4 space-y-6">
-      <div className="flex items-center gap-3">
-        <WalletIcon className="w-8 h-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Carteira</h1>
-          <p className="text-muted-foreground">Gerencie seus ganhos e dados bancários</p>
+  const earningsTransactions = transactions.filter(t => t.type === 'mechanic_earnings');
+  const pendingTransactions = transactions.filter(t => {
+    const availableDate = t.availableAt ? new Date(t.availableAt) : null;
+    return t.status === 'completed' && availableDate && availableDate > new Date();
+  });
+  const withdrawalTransactions = transactions.filter(t => t.type === 'withdrawal');
+
+  const renderTransaction = (transaction: Transaction) => {
+    const amount = parseFloat(transaction.amount);
+    const isEarning = transaction.type === 'mechanic_earnings';
+    const isWithdrawal = transaction.type === 'withdrawal';
+    const isPending = transaction.status === 'pending';
+    const isCancelled = transaction.status === 'cancelled';
+    const availableDate = transaction.availableAt ? new Date(transaction.availableAt) : null;
+    const isAvailable = !availableDate || availableDate <= new Date();
+
+    return (
+      <div 
+        key={transaction.id} 
+        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors" 
+        data-testid={`transaction-${transaction.id}`}
+      >
+        <div className="flex items-center gap-4 flex-1">
+          <div className={`p-2 rounded-full ${
+            isEarning ? 'bg-green-500/10' : 
+            isWithdrawal ? 'bg-blue-500/10' : 'bg-gray-500/10'
+          }`}>
+            {isEarning ? (
+              <ArrowDownToLine className="w-4 h-4 text-green-600 dark:text-green-400" />
+            ) : isWithdrawal ? (
+              <ArrowUpFromLine className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <Clock className="w-4 h-4 text-gray-600" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{transaction.description}</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <Clock className="w-3 h-3" />
+              <span>{new Date(transaction.createdAt).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</span>
+            </div>
+            {isWithdrawal && transaction.withdrawalDetails && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {transaction.withdrawalDetails}
+              </p>
+            )}
+          </div>
         </div>
+        <div className="text-right ml-4">
+          <p className={`text-lg font-bold ${
+            isEarning ? 'text-green-600 dark:text-green-400' : 
+            isWithdrawal ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600'
+          }`} data-testid={`transaction-amount-${transaction.id}`}>
+            {amount > 0 ? '+' : ''}R$ {Math.abs(amount).toFixed(2)}
+          </p>
+          {isPending && (
+            <Badge variant="outline" className="mt-1 text-xs border-orange-500/50 text-orange-600">
+              <Clock className="w-3 h-3 mr-1" />
+              Pendente
+            </Badge>
+          )}
+          {isCancelled && (
+            <Badge variant="outline" className="mt-1 text-xs border-red-500/50 text-red-600">
+              <XCircle className="w-3 h-3 mr-1" />
+              Cancelado
+            </Badge>
+          )}
+          {!isPending && !isCancelled && (
+            <Badge variant="outline" className="mt-1 text-xs border-green-500/50 text-green-600">
+              <CheckCircle className="w-3 h-3 mr-1" />
+              Concluído
+            </Badge>
+          )}
+          {availableDate && !isAvailable && (
+            <p className="text-xs text-orange-600 mt-1">
+              Liberado às {availableDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="container max-w-6xl mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <WalletIcon className="w-8 h-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">Carteira</h1>
+            <p className="text-muted-foreground">Gerencie seus ganhos e saques</p>
+          </div>
+        </div>
+        {user?.userType === 'mechanic' && (
+          <Dialog open={isBankDialogOpen} onOpenChange={setIsBankDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4 mr-2" />
+                Dados Bancários
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Dados Bancários</DialogTitle>
+                <DialogDescription>
+                  Configure sua chave PIX para receber saques
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleBankDataSubmit} className="space-y-4 mt-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pixKey">Chave PIX *</Label>
+                    <Input
+                      id="pixKey"
+                      value={bankData.pixKey}
+                      onChange={(e) => setBankData({...bankData, pixKey: e.target.value})}
+                      placeholder="email@exemplo.com, CPF ou telefone"
+                      data-testid="input-pix-key"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pixKeyType">Tipo de Chave</Label>
+                    <Select 
+                      value={bankData.pixKeyType} 
+                      onValueChange={(value) => setBankData({...bankData, pixKeyType: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">E-mail</SelectItem>
+                        <SelectItem value="cpf">CPF</SelectItem>
+                        <SelectItem value="phone">Telefone</SelectItem>
+                        <SelectItem value="random">Chave Aleatória</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Alert>
+                  <Info className="w-4 h-4" />
+                  <AlertDescription className="text-sm">
+                    Configure sua chave PIX para receber saques rapidamente. Os valores ficam disponíveis 12h após a conclusão do serviço.
+                  </AlertDescription>
+                </Alert>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsBankDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateBankDataMutation.isPending}
+                    className="flex-1"
+                    data-testid="button-save-bank-data"
+                  >
+                    {updateBankDataMutation.isPending ? "Salvando..." : "Salvar"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {user?.userType === 'mechanic' && (
-        <div className="grid md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-green-600" />
-                Saldo Disponível
+        <div className="grid md:grid-cols-3 gap-4">
+          <Card className="border-2 border-green-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DollarSign className="w-4 h-4 text-green-600" />
+                Disponível para Saque
               </CardTitle>
-              <CardDescription>
-                Disponível para saque agora
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <p className="text-4xl font-bold text-green-600" data-testid="text-available-balance">
-                  {isLoadingBalance ? '...' : `R$ ${balance?.available.toFixed(2) || '0.00'}`}
-                </p>
-                
-                <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      disabled={!balance || balance.available <= 0 || (!hasBankData && !hasPixKey)}
-                      className="w-full"
-                      size="lg"
-                      data-testid="button-request-withdraw"
-                    >
-                      Solicitar Saque
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Solicitar Saque</DialogTitle>
-                      <DialogDescription>
-                        Informe o valor e o método de transferência
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <Label htmlFor="withdraw-amount">Valor do Saque</Label>
-                        <Input
-                          id="withdraw-amount"
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={withdrawAmount}
-                          onChange={(e) => setWithdrawAmount(e.target.value)}
-                          placeholder="0.00"
-                          data-testid="input-withdraw-amount"
-                        />
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Disponível: R$ {balance?.available.toFixed(2) || '0.00'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="withdraw-method">Método de Transferência</Label>
-                        <Select value={withdrawMethod} onValueChange={setWithdrawMethod}>
-                          <SelectTrigger data-testid="select-withdraw-method">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pix" disabled={!hasPixKey}>PIX {!hasPixKey && '(Configure primeiro)'}</SelectItem>
-                            <SelectItem value="bank_transfer" disabled={!hasBankData}>Transferência Bancária {!hasBankData && '(Configure primeiro)'}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {withdrawMethod === 'pix' && hasPixKey && (
-                        <Alert>
-                          <Info className="w-4 h-4" />
-                          <AlertDescription>
-                            Chave PIX: {bankData.pixKey || user?.pixKey}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      {withdrawMethod === 'bank_transfer' && hasBankData && (
-                        <Alert>
-                          <Info className="w-4 h-4" />
-                          <AlertDescription>
-                            {bankData.bankName || user?.bankName} - Ag: {bankData.bankBranch || user?.bankBranch || 'N/A'} - Conta: {bankData.bankAccountNumber || user?.bankAccountNumber}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      <Button 
-                        onClick={handleWithdrawSubmit}
-                        disabled={requestWithdrawalMutation.isPending}
-                        className="w-full"
-                        data-testid="button-submit-withdraw"
-                      >
-                        {requestWithdrawalMutation.isPending ? "Processando..." : "Confirmar Saque"}
-                      </Button>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400 mb-4" data-testid="text-available-balance">
+                {isLoadingBalance ? '...' : `R$ ${balance?.available.toFixed(2) || '0.00'}`}
+              </p>
+              <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    disabled={!balance || balance.available <= 0 || !hasPixKey}
+                    className="w-full"
+                    data-testid="button-request-withdraw"
+                  >
+                    <ArrowUpFromLine className="w-4 h-4 mr-2" />
+                    Solicitar Saque
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Solicitar Saque PIX</DialogTitle>
+                    <DialogDescription>
+                      Informe o valor do saque
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <Label htmlFor="withdraw-amount">Valor</Label>
+                      <Input
+                        id="withdraw-amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="0.00"
+                        data-testid="input-withdraw-amount"
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Disponível: R$ {balance?.available.toFixed(2) || '0.00'}
+                      </p>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+
+                    {hasPixKey && (
+                      <Alert>
+                        <Info className="w-4 h-4" />
+                        <AlertDescription>
+                          PIX: {bankData.pixKey || user?.pixKey} ({bankData.pixKeyType || user?.pixKeyType})
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button 
+                      onClick={handleWithdrawSubmit}
+                      disabled={requestWithdrawalMutation.isPending}
+                      className="w-full"
+                      data-testid="button-submit-withdraw"
+                    >
+                      {requestWithdrawalMutation.isPending ? "Processando..." : "Confirmar Saque"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-orange-600" />
-                Saldo Pendente
+          <Card className="border-2 border-orange-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="w-4 h-4 text-orange-600" />
+                Aguardando Liberação
               </CardTitle>
-              <CardDescription>
-                Disponível em até 12h após conclusão
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold text-orange-600" data-testid="text-pending-balance">
+              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mb-2" data-testid="text-pending-balance">
                 {isLoadingBalance ? '...' : `R$ ${balance?.pending.toFixed(2) || '0.00'}`}
               </p>
-              <Alert className="mt-4">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription className="text-xs">
-                  Valores de serviços concluídos ficam disponíveis para saque 12 horas após a finalização
-                </AlertDescription>
-              </Alert>
+              <p className="text-xs text-muted-foreground">
+                Liberado 12h após conclusão
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-blue-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="w-4 h-4 text-blue-600" />
+                Total de Ganhos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                {isLoadingBalance ? '...' : `R$ ${balance?.total.toFixed(2) || '0.00'}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Disponível + Pendente
+              </p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      <Tabs defaultValue={user?.userType === 'mechanic' ? 'transactions' : 'transactions'}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="transactions" data-testid="tab-transactions">Transações</TabsTrigger>
-          {user?.userType === 'mechanic' && (
-            <TabsTrigger value="bank-data" data-testid="tab-bank-data">Dados Bancários</TabsTrigger>
-          )}
+      <Tabs defaultValue="earnings" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="earnings" data-testid="tab-earnings">
+            <ArrowDownToLine className="w-4 h-4 mr-2" />
+            Ganhos
+          </TabsTrigger>
+          <TabsTrigger value="pending" data-testid="tab-pending">
+            <Clock className="w-4 h-4 mr-2" />
+            Aguardando ({pendingTransactions.length})
+          </TabsTrigger>
+          <TabsTrigger value="withdrawals" data-testid="tab-withdrawals">
+            <ArrowUpFromLine className="w-4 h-4 mr-2" />
+            Saques
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="transactions">
+        <TabsContent value="earnings">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Histórico de Transações
+                <ArrowDownToLine className="w-5 h-5 text-green-600" />
+                Histórico de Ganhos
               </CardTitle>
               <CardDescription>
-                Todas as suas transações e saques
+                Todos os serviços concluídos e seus ganhos
               </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingTransactions ? (
                 <p className="text-center py-8 text-muted-foreground">Carregando...</p>
-              ) : transactions.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nenhuma transação ainda</p>
+              ) : earningsTransactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum ganho ainda</p>
+                  <p className="text-sm text-muted-foreground mt-1">Complete serviços para começar a ganhar</p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {transactions.map((transaction) => {
-                    const amount = parseFloat(transaction.amount);
-                    const isEarning = transaction.type === 'mechanic_earnings';
-                    const isWithdrawal = transaction.type === 'withdrawal';
-                    const isPending = transaction.status === 'pending';
-                    const availableDate = transaction.availableAt ? new Date(transaction.availableAt) : null;
-                    const isAvailable = !availableDate || availableDate <= new Date();
-
-                    return (
-                      <div 
-                        key={transaction.id} 
-                        className="flex items-center justify-between p-4 border rounded-lg hover-elevate" 
-                        data-testid={`transaction-${transaction.id}`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`p-2 rounded-full ${
-                            isEarning ? 'bg-green-100' : 
-                            isWithdrawal ? 'bg-blue-100' : 'bg-gray-100'
-                          }`}>
-                            {isEarning ? (
-                              <TrendingUp className="w-4 h-4 text-green-600" />
-                            ) : isWithdrawal ? (
-                              <WalletIcon className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-gray-600" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium">{transaction.description}</p>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {new Date(transaction.createdAt).toLocaleString('pt-BR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                              {availableDate && !isAvailable && (
-                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
-                                  Disponível em {availableDate.toLocaleString('pt-BR', {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              )}
-                            </div>
-                            {isWithdrawal && transaction.withdrawalDetails && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {transaction.withdrawalDetails}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-lg font-bold ${
-                            isEarning ? 'text-green-600' : isWithdrawal ? 'text-blue-600' : 'text-gray-600'
-                          }`} data-testid={`transaction-amount-${transaction.id}`}>
-                            {amount > 0 ? '+' : ''}R$ {Math.abs(amount).toFixed(2)}
-                          </p>
-                          <div className="flex items-center gap-1 text-sm">
-                            {isPending ? (
-                              <>
-                                <Clock className="w-3 h-3 text-orange-500" />
-                                <span className="text-orange-500">Pendente</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-3 h-3 text-green-600" />
-                                <span className="text-green-600">Concluído</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-2">
+                  {earningsTransactions.map(renderTransaction)}
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {user?.userType === 'mechanic' && (
-          <TabsContent value="bank-data">
-            <Card>
-              <CardHeader>
-                <CardTitle>Dados Bancários</CardTitle>
-                <CardDescription>
-                  Configure seus dados para receber saques via transferência ou PIX
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleBankDataSubmit} className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="bankAccountName">Nome do Titular</Label>
-                      <Input
-                        id="bankAccountName"
-                        value={bankData.bankAccountName}
-                        onChange={(e) => setBankData({...bankData, bankAccountName: e.target.value})}
-                        placeholder="Nome completo"
-                        data-testid="input-account-name"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bankName">Banco</Label>
-                      <Input
-                        id="bankName"
-                        value={bankData.bankName}
-                        onChange={(e) => setBankData({...bankData, bankName: e.target.value})}
-                        placeholder="Ex: Banco do Brasil, Caixa, Itaú"
-                        data-testid="input-bank-name"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bankAccountNumber">Número da Conta</Label>
-                      <Input
-                        id="bankAccountNumber"
-                        value={bankData.bankAccountNumber}
-                        onChange={(e) => setBankData({...bankData, bankAccountNumber: e.target.value})}
-                        placeholder="12345-6"
-                        data-testid="input-account-number"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bankBranch">Agência (Opcional)</Label>
-                      <Input
-                        id="bankBranch"
-                        value={bankData.bankBranch}
-                        onChange={(e) => setBankData({...bankData, bankBranch: e.target.value})}
-                        placeholder="0001"
-                        data-testid="input-bank-branch"
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="pixKey">Chave PIX (Opcional)</Label>
-                      <Input
-                        id="pixKey"
-                        value={bankData.pixKey}
-                        onChange={(e) => setBankData({...bankData, pixKey: e.target.value})}
-                        placeholder="email@exemplo.com, CPF, telefone ou chave aleatória"
-                        data-testid="input-pix-key"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Configure PIX ou transferência bancária para receber saques
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={updateBankDataMutation.isPending}
-                    data-testid="button-save-bank-data"
-                  >
-                    {updateBankDataMutation.isPending ? "Salvando..." : "Salvar Dados Bancários"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        <TabsContent value="pending">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-600" />
+                Aguardando Liberação
+              </CardTitle>
+              <CardDescription>
+                Ganhos que serão liberados em breve (12h após conclusão)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTransactions ? (
+                <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+              ) : pendingTransactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nada aguardando liberação</p>
+                  <p className="text-sm text-muted-foreground mt-1">Valores ficam disponíveis 12h após conclusão</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {pendingTransactions.map(renderTransaction)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="withdrawals">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowUpFromLine className="w-5 h-5 text-blue-600" />
+                Histórico de Saques
+              </CardTitle>
+              <CardDescription>
+                Todos os saques solicitados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTransactions ? (
+                <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+              ) : withdrawalTransactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <WalletIcon className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum saque realizado</p>
+                  <p className="text-sm text-muted-foreground mt-1">Solicite saques quando tiver saldo disponível</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {withdrawalTransactions.map(renderTransaction)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

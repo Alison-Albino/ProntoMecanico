@@ -58,6 +58,7 @@ export const serviceRequests = pgTable("service_requests", {
   acceptedAt: timestamp("accepted_at"),
   completedAt: timestamp("completed_at"),
   arrivedAt: timestamp("arrived_at"),
+  cancelledAt: timestamp("cancelled_at"),
 });
 
 export const chatMessages = pgTable("chat_messages", {
