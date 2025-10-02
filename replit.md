@@ -194,9 +194,10 @@ Preferred communication style: Simple, everyday language.
 
 **October 2, 2025 - Replit Environment Setup:**
 - Fixed Stripe initialization to handle missing API keys gracefully
-- Configured Vite HMR WebSocket with clientPort for Replit proxy compatibility
+- Disabled Vite HMR to prevent WebSocket conflicts and page reloading issues
 - Server properly configured to run on port 5000 with 0.0.0.0 host
 - Payment features disabled when STRIPE_SECRET_KEY not configured (development mode)
+- Resolved authentication persistence issue caused by HMR WebSocket failures
 
 ## External Dependencies
 
