@@ -316,16 +316,12 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
       if (!response.ok) throw new Error('Erro ao finalizar serviço');
 
-      if (user?.userType === 'client') {
-        setShowRatingDialog(true);
-        loadServiceRequest();
-      } else {
-        toast({
-          title: "Serviço finalizado",
-          description: "Você receberá o pagamento em sua carteira",
-        });
-        setLocation('/');
-      }
+      toast({
+        title: "Serviço finalizado",
+        description: "Aguardando confirmação do cliente",
+      });
+
+      loadServiceRequest();
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -334,6 +330,65 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       });
     }
   };
+
+  const handleConfirm = async () => {
+    try {
+      const response = await fetchWithAuth(`/api/service-requests/${requestId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Erro ao confirmar serviço');
+
+      toast({
+        title: "Serviço confirmado",
+        description: "Agora você pode avaliar o atendimento",
+      });
+
+      loadServiceRequest();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartRating = () => {
+    if (!serviceRequest) return;
+    
+    const hasConfirmed = user?.userType === 'client' 
+      ? serviceRequest.clientConfirmed 
+      : serviceRequest.mechanicConfirmed;
+    
+    if (!hasConfirmed) {
+      toast({
+        title: "Confirme primeiro",
+        description: "Você precisa confirmar a conclusão antes de avaliar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hasRated = user?.userType === 'client' 
+      ? serviceRequest.clientRating 
+      : serviceRequest.mechanicRating;
+    
+    if (hasRated) {
+      toast({
+        title: "Já avaliado",
+        description: "Você já avaliou este serviço",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowRatingDialog(true);
+  };
+
 
   const handleSubmitRating = async () => {
     if (rating === 0) {
@@ -522,11 +577,42 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
                 </Button>
               )}
               
-              {user?.userType === 'client' && (serviceRequest.status === 'arrived' || serviceRequest.status === 'accepted') && (
-                <Button onClick={handleComplete} className="flex-1" data-testid="button-client-complete">
+              {serviceRequest.status === 'completed' && !serviceRequest.clientConfirmed && user?.userType === 'client' && (
+                <Button onClick={handleConfirm} className="flex-1" data-testid="button-confirm">
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Finalizar
+                  Confirmar Conclusão
                 </Button>
+              )}
+
+              {serviceRequest.status === 'completed' && !serviceRequest.mechanicConfirmed && user?.userType === 'mechanic' && (
+                <Button onClick={handleConfirm} className="flex-1" data-testid="button-confirm">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Confirmar Conclusão
+                </Button>
+              )}
+
+              {serviceRequest.status === 'completed' && serviceRequest.clientConfirmed && serviceRequest.mechanicConfirmed && (
+                <>
+                  {!serviceRequest.clientRating && user?.userType === 'client' && (
+                    <Button onClick={handleStartRating} className="flex-1" data-testid="button-rate">
+                      <Star className="w-4 h-4 mr-2" />
+                      Avaliar Mecânico
+                    </Button>
+                  )}
+                  {!serviceRequest.mechanicRating && user?.userType === 'mechanic' && (
+                    <Button onClick={handleStartRating} className="flex-1" data-testid="button-rate">
+                      <Star className="w-4 h-4 mr-2" />
+                      Avaliar Cliente
+                    </Button>
+                  )}
+                  {((user?.userType === 'client' && serviceRequest.clientRating) || 
+                    (user?.userType === 'mechanic' && serviceRequest.mechanicRating)) && (
+                    <Button onClick={() => setLocation('/')} className="flex-1" variant="outline" data-testid="button-finish">
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      {serviceRequest.clientRating && serviceRequest.mechanicRating ? 'Concluído' : 'Aguardando Avaliação'}
+                    </Button>
+                  )}
+                </>
               )}
 
               {user?.userType === 'mechanic' && (serviceRequest.status === 'accepted' || serviceRequest.status === 'arrived') && (

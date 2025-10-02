@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import { 
   insertUserSchema, 
   loginSchema, 
@@ -9,11 +10,13 @@ import {
   bankDataSchema,
   ratingSchema,
   baseAddressSchema,
+  serviceRequests,
   type User 
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
 import { createPixPayment, getPaymentStatus, createPixPayout, simulatePaymentApproval, createPixRefund } from "./mercadopago";
+import { calculateServicePricing } from "@shared/utils/pricing";
 
 declare global {
   namespace Express {
@@ -272,6 +275,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Pagamento não confirmado" });
       }
 
+      const pricing = calculateServicePricing(new Date());
+
       const validatedData = insertServiceRequestSchema.parse({
         ...requestData,
         clientId: req.user!.id,
@@ -279,8 +284,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentStatus: 'paid',
         paymentMethod: 'pix',
       });
-      
-      const serviceRequest = await storage.createServiceRequest(validatedData);
+
+      const serviceRequest = await db
+        .insert(serviceRequests)
+        .values({
+          ...validatedData,
+          isAfterHours: pricing.isAfterHours,
+          baseFee: pricing.baseFee.toFixed(2),
+          totalPrice: pricing.totalPrice.toFixed(2),
+          platformFee: pricing.platformFee.toFixed(2),
+          mechanicEarnings: pricing.mechanicEarnings.toFixed(2),
+        })
+        .returning()
+        .then(rows => rows[0]);
 
       const mechanics = await storage.getOnlineMechanics();
       mechanics.forEach(mechanic => {
@@ -417,23 +433,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { distance } = req.body;
-      const baseFee = 50;
-      const distanceFee = distance * 6;
-      const totalPrice = baseFee + distanceFee;
-      const platformFee = distanceFee * 0.10;
-      const mechanicEarnings = baseFee + (distanceFee - platformFee);
 
       const updated = await storage.updateServiceRequest(req.params.id, {
         mechanicId: req.user!.id,
         status: 'accepted',
         acceptedAt: new Date(),
-        distance: distance.toString(),
-        baseFee: baseFee.toString(),
-        distanceFee: distanceFee.toString(),
-        totalPrice: totalPrice.toString(),
-        platformFee: platformFee.toString(),
-        mechanicEarnings: mechanicEarnings.toString(),
-        paymentStatus: 'paid',
+        distance: distance ? distance.toString() : null,
       });
 
       if (!updated) {
@@ -573,6 +578,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Chamada não encontrada" });
       }
 
+      if (request.mechanicId !== req.user!.id) {
+        return res.status(403).json({ message: "Apenas o mecânico pode marcar como concluído" });
+      }
+
+      if (request.status !== 'arrived' && request.status !== 'accepted') {
+        return res.status(400).json({ message: "Chamada não está em andamento" });
+      }
+
+      const updated = await storage.updateServiceRequest(req.params.id, {
+        status: 'completed',
+        completedAt: new Date(),
+      });
+
+      broadcastToUser(request.clientId, {
+        type: 'service_request_completed',
+        data: updated,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/service-requests/:id/confirm", authMiddleware, async (req, res) => {
+    try {
+      const request = await storage.getServiceRequest(req.params.id);
+      
+      if (!request) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
       const isClient = request.clientId === req.user!.id;
       const isMechanic = request.mechanicId === req.user!.id;
 
@@ -580,38 +617,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      if (request.status !== 'arrived' && request.status !== 'accepted') {
-        return res.status(400).json({ message: "Chamada não está em andamento" });
+      if (request.status !== 'completed') {
+        return res.status(400).json({ message: "Serviço precisa estar concluído para confirmação" });
       }
 
-      const completedAt = new Date();
-      const updated = await storage.updateServiceRequest(req.params.id, {
-        status: 'completed',
-        completedAt,
-      });
-
-      if (request.mechanicId && request.mechanicEarnings) {
-        const availableAt = new Date(completedAt.getTime() + 12 * 60 * 60 * 1000);
-        
-        await storage.createTransaction(
-          request.mechanicId,
-          'mechanic_earnings',
-          parseFloat(request.mechanicEarnings),
-          `Ganho do serviço - ${request.serviceType} (${parseFloat(request.distance || '0').toFixed(1)}km)`,
-          req.params.id,
-          availableAt
-        );
-        
-        await storage.updateTransactionStatus(
-          req.params.id,
-          'completed',
-          completedAt
-        );
+      const updateData: any = {};
+      if (isClient) {
+        updateData.clientConfirmed = true;
+      } else if (isMechanic) {
+        updateData.mechanicConfirmed = true;
       }
+
+      const updated = await storage.updateServiceRequest(req.params.id, updateData);
 
       if (isClient && request.mechanicId) {
         broadcastToUser(request.mechanicId, {
-          type: 'service_request_completed',
+          type: 'service_request_confirmed',
           data: updated,
         });
       } else if (isMechanic) {
@@ -635,12 +656,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Chamada não encontrada" });
       }
 
-      if (request.clientId !== req.user!.id) {
-        return res.status(403).json({ message: "Apenas o cliente pode avaliar" });
+      const isClient = request.clientId === req.user!.id;
+      const isMechanic = request.mechanicId === req.user!.id;
+
+      if (!isClient && !isMechanic) {
+        return res.status(403).json({ message: "Acesso negado" });
       }
 
       if (request.status !== 'completed') {
-        return res.status(400).json({ message: "Serviço ainda não foi finalizado" });
+        return res.status(400).json({ message: "Serviço precisa estar concluído" });
+      }
+
+      if (!request.clientConfirmed || !request.mechanicConfirmed) {
+        return res.status(400).json({ message: "Ambas as partes precisam confirmar antes de avaliar" });
       }
 
       const { rating, comment } = req.body;
@@ -649,21 +677,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Avaliação deve ser entre 1 e 5" });
       }
 
-      const updated = await storage.updateServiceRequest(req.params.id, {
-        rating: parseInt(rating.toString()),
-        ratingComment: comment || '',
-      });
+      const updateData: any = {};
+      let userToRate: string | null = null;
 
-      if (request.mechanicId) {
-        const mechanic = await storage.getUser(request.mechanicId);
-        if (mechanic) {
-          const currentRating = parseFloat(mechanic.rating || '0');
-          const totalRatings = parseInt(mechanic.totalRatings?.toString() || '0');
-          const newTotal = totalRatings + 1;
-          const newRating = ((currentRating * totalRatings) + parseInt(rating.toString())) / newTotal;
-          
-          await storage.updateUserRating(request.mechanicId, parseFloat(newRating.toFixed(2)));
+      if (isClient) {
+        if (request.clientRating) {
+          return res.status(400).json({ message: "Você já avaliou este serviço" });
         }
+        updateData.clientRating = parseInt(rating.toString());
+        updateData.clientRatingComment = comment || '';
+        userToRate = request.mechanicId;
+      } else if (isMechanic) {
+        if (request.mechanicRating) {
+          return res.status(400).json({ message: "Você já avaliou este serviço" });
+        }
+        updateData.mechanicRating = parseInt(rating.toString());
+        updateData.mechanicRatingComment = comment || '';
+        userToRate = request.clientId;
+      }
+
+      const updated = await storage.updateServiceRequest(req.params.id, updateData);
+
+      if (userToRate) {
+        await storage.updateUserRating(userToRate, parseInt(rating.toString()));
+      }
+
+      const bothRated = updated && updated.clientRating && updated.mechanicRating;
+
+      if (bothRated && request.mechanicId && request.mechanicEarnings && request.platformFee) {
+        const mechanicEarnings = parseFloat(request.mechanicEarnings);
+        const platformFee = parseFloat(request.platformFee);
+
+        await storage.createTransaction(
+          request.mechanicId,
+          'mechanic_earnings',
+          mechanicEarnings,
+          `Ganho do serviço - ${request.serviceType}`,
+          req.params.id
+        );
+
+        await storage.createTransaction(
+          request.clientId,
+          'platform_fee',
+          platformFee,
+          `Taxa da plataforma - ${request.serviceType}`,
+          req.params.id
+        );
+
+        await storage.updateWalletBalance(request.mechanicId, mechanicEarnings);
+        
+        broadcastToUser(request.mechanicId, {
+          type: 'payment_released',
+          data: { serviceRequestId: req.params.id, amount: request.mechanicEarnings },
+        });
+      }
+
+      if (isClient && request.mechanicId) {
+        broadcastToUser(request.mechanicId, {
+          type: 'service_request_rated',
+          data: updated,
+        });
+      } else if (isMechanic) {
+        broadcastToUser(request.clientId, {
+          type: 'service_request_rated',
+          data: updated,
+        });
       }
 
       res.json(updated);
@@ -750,13 +828,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/payments/calculate-price", authMiddleware, async (req, res) => {
+    try {
+      const pricing = calculateServicePricing(new Date());
+      res.json({
+        isAfterHours: pricing.isAfterHours,
+        baseFee: pricing.baseFee,
+        platformFee: pricing.platformFee,
+        mechanicEarnings: pricing.mechanicEarnings,
+        totalPrice: pricing.totalPrice,
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   app.post("/api/payments/create-pix", authMiddleware, async (req, res) => {
     try {
-      const { amount, description } = req.body;
+      const { description } = req.body;
+      
+      const pricing = calculateServicePricing(new Date());
       
       const payment = await createPixPayment(
-        amount,
-        description,
+        pricing.totalPrice,
+        description || "Serviço de mecânico",
         req.user!.email
       );
 
@@ -764,6 +859,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         qrCode: payment.qrCode,
         qrCodeBase64: payment.qrCodeBase64,
         paymentId: payment.id,
+        amount: pricing.totalPrice,
+        isAfterHours: pricing.isAfterHours,
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message });

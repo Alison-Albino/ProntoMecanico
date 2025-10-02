@@ -10,6 +10,7 @@ import {
   type BaseAddress
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { DatabaseStorage } from "./database-storage";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -210,6 +211,7 @@ export class MemStorage implements IStorage {
       mechanicId: null,
       status: "pending",
       distance: null,
+      isAfterHours: false,
       baseFee: "50.00",
       distanceFee: null,
       totalPrice: null,
@@ -221,6 +223,12 @@ export class MemStorage implements IStorage {
       pixQrCode: null,
       pixPaymentId: null,
       pixExpiration: null,
+      clientConfirmed: false,
+      mechanicConfirmed: false,
+      clientRating: null,
+      clientRatingComment: null,
+      mechanicRating: null,
+      mechanicRatingComment: null,
       rating: null,
       ratingComment: null,
       createdAt: new Date(),
@@ -444,4 +452,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
