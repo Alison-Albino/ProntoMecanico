@@ -190,15 +190,24 @@ Preferred communication style: Simple, everyday language.
 - URL format validation and proper parameter encoding
 - Opens in new tab/window with window.open (mobile OS handlers launch native apps)
 
+## Recent Changes
+
+**October 2, 2025 - Replit Environment Setup:**
+- Fixed Stripe initialization to handle missing API keys gracefully
+- Configured Vite HMR WebSocket with clientPort for Replit proxy compatibility
+- Server properly configured to run on port 5000 with 0.0.0.0 host
+- Payment features disabled when STRIPE_SECRET_KEY not configured (development mode)
+
 ## External Dependencies
 
 ### Third-Party Services
 
 **Stripe:**
 - Payment processing for service fees
-- Configuration via STRIPE_SECRET_KEY environment variable
+- Configuration via STRIPE_SECRET_KEY environment variable (optional for development)
 - API version: 2025-08-27.basil
 - Handles payment intents, confirmations, and refunds
+- Server gracefully handles missing keys by disabling payment features
 
 **Google Maps:**
 - Location services and mapping

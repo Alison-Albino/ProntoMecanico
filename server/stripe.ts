@@ -1,14 +1,14 @@
 import Stripe from 'stripe';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 if (!stripeSecretKey) {
-  console.warn('STRIPE_SECRET_KEY not configured');
+  console.warn('STRIPE_SECRET_KEY not configured - payment features will be disabled');
 }
 
-export const stripe = new Stripe(stripeSecretKey, {
+export const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
   apiVersion: '2025-08-27.basil',
-});
+}) : null as any;
 
 export async function createPaymentIntent(amount: number, description: string) {
   try {
