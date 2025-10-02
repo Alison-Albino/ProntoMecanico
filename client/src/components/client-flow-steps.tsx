@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft } from 'lucide-react';
+import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -144,54 +144,64 @@ export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
   const isValid = inputValue.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 flex flex-col justify-center p-6 space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold" data-testid="text-address-heading">
-            Para onde você precisa de ajuda?
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      <div className="flex-1 flex flex-col justify-center p-6 space-y-8 max-w-md mx-auto w-full">
+        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <h2 className="text-3xl font-bold tracking-tight" data-testid="text-address-heading">
+            Onde você está?
           </h2>
-          <p className="text-muted-foreground">
-            Digite o endereço onde você está ou onde precisa de assistência
+          <p className="text-muted-foreground text-lg">
+            Informe sua localização para encontrar mecânicos próximos
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center pointer-events-none">
-              <MapPin className="w-3 h-3 text-primary" />
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-150">
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary flex items-center justify-center pointer-events-none transition-transform group-focus-within:scale-110">
+              <MapPin className="w-4 h-4 text-primary-foreground" />
             </div>
             <input
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Digite um endereço..."
+              placeholder="Informe seu endereço..."
               data-testid="input-pickup-address"
               autoComplete="off"
-              className="flex h-14 w-full rounded-lg border border-input bg-background pl-11 pr-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-16 w-full rounded-2xl border-2 border-input bg-background pl-16 pr-4 py-2 text-lg shadow-sm transition-all placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
-          <Button
-            variant="outline"
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-muted"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+
+          <button
             onClick={getUserLocation}
             disabled={isGettingLocation}
-            className="w-full"
+            className="w-full h-14 rounded-2xl bg-muted hover:bg-muted/80 transition-all flex items-center justify-center gap-3 text-base font-medium disabled:opacity-50 group"
             data-testid="button-use-current-location"
           >
-            <MapPin className="w-4 h-4 mr-2" />
-            {isGettingLocation ? 'Obtendo localização...' : 'Usar localização atual'}
-          </Button>
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+              <Navigation className="w-4 h-4 text-primary" />
+            </div>
+            {isGettingLocation ? 'Obtendo sua localização...' : 'Usar minha localização atual'}
+          </button>
         </div>
       </div>
 
-      <div className="p-6 border-t">
+      <div className="p-6 animate-in fade-in slide-in-from-bottom-8 duration-500 delay-300">
         <Button
           onClick={handleNext}
           disabled={!isValid}
-          className="w-full h-12 text-base"
+          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
           data-testid="button-next-from-address"
         >
-          Continuar
+          Próximo
         </Button>
       </div>
     </div>
@@ -212,100 +222,115 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
       id: 'mechanic',
       icon: Wrench,
       title: 'Mecânico',
-      subtitle: 'Assistência mecânica no local',
+      subtitle: 'Reparo no local',
+      gradient: 'from-blue-500 to-cyan-500',
     },
     {
       id: 'tow_truck',
       icon: Truck,
       title: 'Guincho',
       subtitle: 'Reboque do veículo',
+      gradient: 'from-purple-500 to-pink-500',
     },
     {
       id: 'road_assistance',
       icon: AlertCircle,
-      title: 'Assistência 24h',
-      subtitle: 'Diversos serviços emergenciais',
+      title: 'Assistência',
+      subtitle: 'Ajuda na estrada',
+      gradient: 'from-orange-500 to-red-500',
     },
   ];
 
   const handleNext = () => {
     onNext({
       type: selectedType,
-      description,
+      description: description,
     });
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      <div className="flex-1 overflow-y-auto">
+        <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
+          <button
             onClick={onBack}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             data-testid="button-back-from-service"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold" data-testid="text-service-heading">
+            <span className="font-medium">Voltar</span>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-8 max-w-md mx-auto w-full">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-bold tracking-tight" data-testid="text-service-heading">
               Qual serviço você precisa?
             </h2>
+            <p className="text-muted-foreground text-lg">
+              Selecione o tipo de assistência necessária
+            </p>
           </div>
-        </div>
 
-        <div className="space-y-3">
-          {serviceTypes.map((service) => {
-            const Icon = service.icon;
-            const isSelected = selectedType === service.id;
-            
-            return (
-              <Card
-                key={service.id}
-                className={`cursor-pointer transition-all hover-elevate ${
-                  isSelected ? 'border-primary bg-primary/5' : ''
-                }`}
-                onClick={() => setSelectedType(service.id)}
-                data-testid={`card-service-${service.id}`}
-              >
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                  }`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold">{service.title}</h3>
-                    <p className="text-sm text-muted-foreground">{service.subtitle}</p>
-                  </div>
-                  {isSelected && (
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-100">
+            {serviceTypes.map((service, index) => {
+              const Icon = service.icon;
+              const isSelected = selectedType === service.id;
+              
+              return (
+                <button
+                  key={service.id}
+                  onClick={() => setSelectedType(service.id)}
+                  data-testid={`button-service-${service.id}`}
+                  className={`w-full p-5 rounded-2xl border-2 transition-all duration-300 group relative overflow-hidden ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-lg scale-[1.02]'
+                      : 'border-muted hover:border-primary/50 hover:bg-muted/50'
+                  }`}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center gap-4 relative z-10">
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${service.gradient} flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}>
+                      <Icon className="w-7 h-7 text-white" />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    <div className="flex-1 text-left">
+                      <h3 className="text-lg font-semibold">{service.title}</h3>
+                      <p className="text-sm text-muted-foreground">{service.subtitle}</p>
+                    </div>
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+                    }`}>
+                      {isSelected && (
+                        <div className="w-3 h-3 rounded-full bg-primary-foreground"></div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="description">Descreva o problema (opcional)</Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ex: Pneu furado, bateria descarregada, motor não liga..."
-            rows={3}
-            data-testid="textarea-service-description"
-          />
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-500 delay-200">
+            <Label htmlFor="description" className="text-base font-medium">
+              Descreva o problema (opcional)
+            </Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex: Pneu furado, bateria descarregada..."
+              rows={4}
+              data-testid="textarea-description"
+              className="resize-none rounded-2xl border-2 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="p-6 border-t">
+      <div className="p-6 border-t bg-background animate-in fade-in slide-in-from-bottom-10 duration-500 delay-300">
         <Button
           onClick={handleNext}
-          className="w-full h-12 text-base"
+          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
           data-testid="button-next-from-service"
         >
           Continuar
@@ -318,10 +343,9 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
 interface PaymentStepProps {
   onNext: (data: PaymentData) => void;
   onBack: () => void;
-  estimatedPrice?: number;
 }
 
-export function PaymentStep({ onNext, onBack, estimatedPrice }: PaymentStepProps) {
+export function PaymentStep({ onNext, onBack }: PaymentStepProps) {
   const [selectedMethod, setSelectedMethod] = useState<'card' | 'pix'>('pix');
 
   const paymentMethods = [
@@ -329,114 +353,106 @@ export function PaymentStep({ onNext, onBack, estimatedPrice }: PaymentStepProps
       id: 'pix' as const,
       icon: QrCode,
       title: 'PIX',
-      subtitle: 'Pagamento instantâneo via QR Code',
+      subtitle: 'Pagamento instantâneo',
       recommended: true,
+      gradient: 'from-emerald-500 to-teal-500',
     },
     {
       id: 'card' as const,
       icon: CreditCard,
       title: 'Cartão de Crédito',
-      subtitle: 'Pagamento com cartão',
+      subtitle: 'Pagamento seguro',
       recommended: false,
+      gradient: 'from-blue-500 to-indigo-500',
     },
   ];
 
   const handleNext = () => {
-    onNext({
-      method: selectedMethod,
-    });
+    onNext({ method: selectedMethod });
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      <div className="flex-1 overflow-y-auto">
+        <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
+          <button
             onClick={onBack}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             data-testid="button-back-from-payment"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold" data-testid="text-payment-heading">
-              Como você quer pagar?
-            </h2>
-          </div>
+            <span className="font-medium">Voltar</span>
+          </button>
         </div>
 
-        {estimatedPrice && (
-          <Card className="bg-muted/30">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Valor estimado</span>
-                <span className="text-2xl font-bold">
-                  R$ {estimatedPrice.toFixed(2)}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Valor final pode variar baseado na distância
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <div className="p-6 space-y-8 max-w-md mx-auto w-full">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-bold tracking-tight" data-testid="text-payment-heading">
+              Forma de pagamento
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Escolha como deseja pagar pelo serviço
+            </p>
+          </div>
 
-        <div className="space-y-3">
-          {paymentMethods.map((method) => {
-            const Icon = method.icon;
-            const isSelected = selectedMethod === method.id;
-            
-            return (
-              <Card
-                key={method.id}
-                className={`cursor-pointer transition-all hover-elevate ${
-                  isSelected ? 'border-primary bg-primary/5' : ''
-                }`}
-                onClick={() => setSelectedMethod(method.id)}
-                data-testid={`card-payment-${method.id}`}
-              >
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                  }`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{method.title}</h3>
-                      {method.recommended && (
-                        <span className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-                          Recomendado
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{method.subtitle}</p>
-                  </div>
-                  {isSelected && (
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-100">
+            {paymentMethods.map((method, index) => {
+              const Icon = method.icon;
+              const isSelected = selectedMethod === method.id;
+              
+              return (
+                <button
+                  key={method.id}
+                  onClick={() => setSelectedMethod(method.id)}
+                  data-testid={`button-payment-${method.id}`}
+                  className={`w-full p-5 rounded-2xl border-2 transition-all duration-300 group relative overflow-hidden ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-lg scale-[1.02]'
+                      : 'border-muted hover:border-primary/50 hover:bg-muted/50'
+                  }`}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  {method.recommended && (
+                    <div className="absolute top-3 right-3 px-2 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
+                      Recomendado
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  <div className="flex items-center gap-4 relative z-10">
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${method.gradient} flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}>
+                      <Icon className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <h3 className="text-lg font-semibold">{method.title}</h3>
+                      <p className="text-sm text-muted-foreground">{method.subtitle}</p>
+                    </div>
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+                    }`}>
+                      {isSelected && (
+                        <div className="w-3 h-3 rounded-full bg-primary-foreground"></div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>• O pagamento só será processado após a confirmação do serviço</p>
-          <p>• Você pode cancelar gratuitamente antes do mecânico aceitar</p>
+          <div className="p-4 bg-muted/50 rounded-2xl animate-in fade-in slide-in-from-bottom-8 duration-500 delay-200">
+            <p className="text-sm text-muted-foreground text-center">
+              💡 O valor do serviço será calculado após um mecânico aceitar sua chamada
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="p-6 border-t">
+      <div className="p-6 border-t bg-background animate-in fade-in slide-in-from-bottom-10 duration-500 delay-300">
         <Button
           onClick={handleNext}
-          className="w-full h-12 text-base"
-          data-testid="button-confirm-request"
+          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
+          data-testid="button-confirm-payment"
         >
-          Solicitar Serviço
+          Solicitar Mecânico
         </Button>
       </div>
     </div>

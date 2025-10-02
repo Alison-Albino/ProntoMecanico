@@ -35,44 +35,75 @@ export function MobileNav() {
     : baseNavItems;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-50">
-      <div className="flex justify-around items-center h-16">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location === item.path;
-          
-          const isChatItem = item.label === 'Chat';
-          
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              data-testid={`link-nav-${item.label.toLowerCase()}`}
-            >
-              <button
-                className={`flex flex-col items-center justify-center w-16 h-full gap-1 relative ${
-                  isActive
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover-elevate'
-                }`}
+    <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50 pb-safe">
+      <div className="max-w-screen-lg mx-auto">
+        <div className="flex justify-around items-center h-20 px-2">
+          {navItems.map((item, index) => {
+            const Icon = item.icon;
+            const isActive = location === item.path;
+            const isChatItem = item.label === 'Chat';
+            
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                data-testid={`link-nav-${item.label.toLowerCase()}`}
+                className="flex-1 max-w-[100px]"
               >
-                <div className="relative">
-                  <Icon className="w-5 h-5" />
-                  {isChatItem && unreadCount > 0 && (
-                    <Badge 
-                      variant="destructive" 
-                      className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
-                      data-testid="badge-mobile-nav-unread"
-                    >
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </Badge>
+                <button
+                  className={`w-full h-16 flex flex-col items-center justify-center gap-1.5 relative transition-all duration-300 group ${
+                    isActive
+                      ? 'scale-105'
+                      : 'hover:scale-105'
+                  }`}
+                  style={{
+                    animationDelay: `${index * 50}ms`,
+                  }}
+                >
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-full animate-in slide-in-from-top-2 duration-300" />
                   )}
-                </div>
-                <span className="text-xs">{item.label}</span>
-              </button>
-            </Link>
-          );
-        })}
+                  
+                  {/* Icon container */}
+                  <div className="relative">
+                    <div className={`p-2 rounded-2xl transition-all duration-300 ${
+                      isActive
+                        ? 'bg-primary/10 scale-110'
+                        : 'bg-transparent group-hover:bg-muted'
+                    }`}>
+                      <Icon className={`w-6 h-6 transition-colors duration-300 ${
+                        isActive
+                          ? 'text-primary'
+                          : 'text-muted-foreground group-hover:text-foreground'
+                      }`} />
+                    </div>
+                    
+                    {/* Unread badge */}
+                    {isChatItem && unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] font-bold shadow-lg animate-in zoom-in-50 duration-200"
+                        data-testid="badge-mobile-nav-unread"
+                      >
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Label */}
+                  <span className={`text-xs font-medium transition-all duration-300 ${
+                    isActive
+                      ? 'text-primary scale-105'
+                      : 'text-muted-foreground group-hover:text-foreground'
+                  }`}>
+                    {item.label}
+                  </span>
+                </button>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
