@@ -168,6 +168,16 @@ export default function WaitingPage() {
               </div>
             </div>
 
+            {serviceRequest.vehicleBrand && serviceRequest.vehicleModel && (
+              <div>
+                <p className="text-sm font-medium">Veículo:</p>
+                <p className="text-sm text-muted-foreground" data-testid="text-vehicle">
+                  {serviceRequest.vehicleBrand} {serviceRequest.vehicleModel}
+                  {serviceRequest.vehiclePlate && ` • ${serviceRequest.vehiclePlate}`}
+                </p>
+              </div>
+            )}
+
             {serviceRequest.description && (
               <div>
                 <p className="text-sm font-medium">Descrição do problema:</p>

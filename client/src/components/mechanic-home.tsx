@@ -274,6 +274,12 @@ export function MechanicHome() {
                   <p className="text-sm text-muted-foreground mb-2">
                     {request.pickupAddress}
                   </p>
+                  {request.vehicleBrand && request.vehicleModel && (
+                    <p className="text-sm mb-2">
+                      <strong>Veículo:</strong> {request.vehicleBrand} {request.vehicleModel}
+                      {request.vehiclePlate && ` • ${request.vehiclePlate}`}
+                    </p>
+                  )}
                   {request.description && (
                     <p className="text-sm mb-2">{request.description}</p>
                   )}
