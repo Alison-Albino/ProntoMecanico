@@ -5,10 +5,12 @@ import { z } from "zod";
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
+  username: text("username").unique(),
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
+  cpfCnpj: text("cpf_cnpj").notNull().unique(),
+  birthDate: timestamp("birth_date").notNull(),
   phone: text("phone").notNull(),
   userType: text("user_type").notNull(),
   isOnline: boolean("is_online").default(false),
@@ -98,19 +100,29 @@ export const transactions = pgTable("transactions", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+  username: true,
 }).extend({
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  confirmPassword: z.string().optional(),
   email: z.string().email("Email inválido"),
+  cpfCnpj: z.string().min(11, "CPF ou CNPJ é obrigatório"),
+  birthDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (typeof val === 'string') return new Date(val);
+    return val;
+  }),
   userType: z.enum(["client", "mechanic"], {
     required_error: "Tipo de usuário é obrigatório",
   }),
   baseAddress: z.string().optional(),
   baseLat: z.union([z.string(), z.number()]).optional(),
   baseLng: z.union([z.string(), z.number()]).optional(),
+}).refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+  message: "As senhas não coincidem",
+  path: ["confirmPassword"],
 });
 
 export const loginSchema = z.object({
-  username: z.string().min(1, "Usuário é obrigatório"),
+  identifier: z.string().min(1, "CPF/Email é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
 });
 
