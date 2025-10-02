@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Wrench, Truck, AlertCircle } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { getBrandLabel } from '@shared/vehicles';
 
 export function MechanicHome() {
   const { user, token, updateUser } = useAuth();
@@ -276,7 +277,7 @@ export function MechanicHome() {
                   </p>
                   {request.vehicleBrand && request.vehicleModel && (
                     <p className="text-sm mb-2">
-                      <strong>Veículo:</strong> {request.vehicleBrand} {request.vehicleModel}
+                      <strong>Veículo:</strong> {getBrandLabel(request.vehicleBrand)} {request.vehicleModel}
                       {request.vehiclePlate && ` • ${request.vehiclePlate}`}
                     </p>
                   )}

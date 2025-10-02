@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, MapPin, Clock } from 'lucide-react';
+import { getBrandLabel } from '@shared/vehicles';
 
 export default function WaitingPage() {
   const [, params] = useRoute('/waiting/:id');
@@ -172,7 +173,7 @@ export default function WaitingPage() {
               <div>
                 <p className="text-sm font-medium">Veículo:</p>
                 <p className="text-sm text-muted-foreground" data-testid="text-vehicle">
-                  {serviceRequest.vehicleBrand} {serviceRequest.vehicleModel}
+                  {getBrandLabel(serviceRequest.vehicleBrand)} {serviceRequest.vehicleModel}
                   {serviceRequest.vehiclePlate && ` • ${serviceRequest.vehiclePlate}`}
                 </p>
               </div>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useNotifications } from '@/lib/use-notifications';
 import { Badge } from '@/components/ui/badge';
+import { getBrandLabel } from '@shared/vehicles';
 import { Wrench, Navigation, Phone, MessageCircle, MapPin, CheckCircle, Star, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -556,7 +557,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
 
             {serviceRequest.vehicleBrand && serviceRequest.vehicleModel && (
               <div className="text-sm">
-                <strong>Veículo:</strong> {serviceRequest.vehicleBrand} {serviceRequest.vehicleModel}
+                <strong>Veículo:</strong> {getBrandLabel(serviceRequest.vehicleBrand)} {serviceRequest.vehicleModel}
                 {serviceRequest.vehiclePlate && ` • ${serviceRequest.vehiclePlate}`}
               </div>
             )}

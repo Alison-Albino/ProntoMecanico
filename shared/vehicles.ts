@@ -133,3 +133,8 @@ export function validatePlate(plate: string): boolean {
   
   return mercosulPattern.test(cleanPlate) || oldPattern.test(cleanPlate);
 }
+
+export function getBrandLabel(brandValue: string): string {
+  const brand = vehicleBrands.find(b => b.value === brandValue);
+  return brand?.label || brandValue;
+}
