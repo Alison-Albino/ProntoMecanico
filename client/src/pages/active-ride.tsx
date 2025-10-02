@@ -136,24 +136,6 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
         const data = await response.json();
         setServiceRequest(data);
         
-        if (data.status === 'completed' && user?.userType === 'mechanic') {
-          toast({
-            title: "Serviço concluído",
-            description: "O pagamento foi adicionado à sua carteira",
-          });
-          setTimeout(() => setLocation('/'), 2000);
-        }
-        
-        if (data.status === 'completed' && user?.userType === 'client' && !data.rating) {
-          setShowRatingDialog(true);
-        } else if (data.status === 'completed' && user?.userType === 'client' && data.rating) {
-          toast({
-            title: "Serviço concluído",
-            description: "Obrigado por usar nossos serviços!",
-          });
-          setTimeout(() => setLocation('/'), 2000);
-        }
-        
         if (data.mechanicId && user?.userType === 'client') {
           loadMechanicLocation(data.mechanicId);
         }
@@ -410,6 +392,8 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       });
 
       if (!response.ok) throw new Error('Erro ao enviar avaliação');
+      
+      const updatedData = await response.json();
 
       toast({
         title: "Avaliação enviada",
@@ -417,7 +401,20 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
       });
 
       setShowRatingDialog(false);
-      setTimeout(() => setLocation('/'), 1000);
+      setRating(0);
+      setComment('');
+      
+      await loadServiceRequest();
+      
+      if (updatedData.serviceRequest?.clientRating && updatedData.serviceRequest?.mechanicRating) {
+        toast({
+          title: "Serviço finalizado",
+          description: user?.userType === 'mechanic' 
+            ? "O pagamento foi creditado em sua carteira!" 
+            : "Obrigado por utilizar nossos serviços!",
+        });
+        setTimeout(() => setLocation('/history'), 2000);
+      }
     } catch (error: any) {
       toast({
         title: "Erro",

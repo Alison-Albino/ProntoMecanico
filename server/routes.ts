@@ -747,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json(updated);
+      res.json({ serviceRequest: updated, bothRated });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
