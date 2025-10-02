@@ -12,6 +12,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { queryClient } from '@/lib/queryClient';
+import { getFirstName } from '@/lib/utils';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -217,8 +218,10 @@ function ProfilePageContent() {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <CardTitle data-testid="text-fullname">{user.fullName}</CardTitle>
-              <CardDescription>@{user.username}</CardDescription>
+              <CardTitle data-testid="text-fullname">
+                {isOwnProfile ? user.fullName : getFirstName(user.fullName)}
+              </CardTitle>
+              {isOwnProfile && <CardDescription>@{user.username}</CardDescription>}
             </div>
             <Badge variant={user.userType === 'mechanic' ? 'default' : 'secondary'} data-testid="badge-usertype">
               {user.userType === 'mechanic' ? 'Mecânico' : 'Cliente'}
@@ -226,20 +229,24 @@ function ProfilePageContent() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <span data-testid="text-email">{user.email}</span>
-          </div>
-          
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="w-4 h-4 text-muted-foreground" />
-            <span data-testid="text-phone">{user.phone}</span>
-          </div>
+          {isOwnProfile && (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <span data-testid="text-email">{user.email}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-sm">
+                <Phone className="w-4 h-4 text-muted-foreground" />
+                <span data-testid="text-phone">{user.phone}</span>
+              </div>
 
-          <div className="flex items-center gap-2 text-sm">
-            <User className="w-4 h-4 text-muted-foreground" />
-            <span data-testid="text-username">Usuário: {user.username}</span>
-          </div>
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <span data-testid="text-username">Usuário: {user.username}</span>
+              </div>
+            </>
+          )}
 
           <div className="pt-4 border-t space-y-3">
             <div className="flex items-center justify-between">

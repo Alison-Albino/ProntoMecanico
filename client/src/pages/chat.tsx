@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation, useRoute, Redirect } from 'wouter';
 import { useNotifications } from '@/lib/use-notifications';
+import { getFirstName } from '@/lib/utils';
 
 export default function ChatPage() {
   const { user, token } = useAuth();
@@ -162,7 +163,7 @@ export default function ChatPage() {
             
             <div className="text-center">
               <h3 className="text-xl font-semibold" data-testid="text-profile-name">
-                {otherUser?.username || 'Carregando...'}
+                {getFirstName(otherUser?.fullName) || 'Carregando...'}
               </h3>
               <p className="text-sm text-muted-foreground" data-testid="text-profile-user-type">
                 {otherUser?.userType === 'mechanic' ? 'Mecânico' : 'Cliente'}
@@ -232,7 +233,7 @@ export default function ChatPage() {
               
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm sm:text-base truncate" data-testid="text-other-user-name">
-                  {otherUser?.username || 'Carregando...'}
+                  {getFirstName(otherUser?.fullName) || 'Carregando...'}
                 </h3>
                 {otherUser?.rating != null && (
                   <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">

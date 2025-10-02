@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { getFirstName } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -69,7 +70,7 @@ export function ChatInterface({
               </AvatarFallback>
             </Avatar>
             <div>
-              <h3 className="font-semibold">{otherParticipant.name}</h3>
+              <h3 className="font-semibold">{getFirstName(otherParticipant.name)}</h3>
               <div className="flex items-center space-x-2">
                 <Badge 
                   variant="outline" 
@@ -136,7 +137,7 @@ export function ChatInterface({
                   }`}
                 >
                   {!isOwnMessage && (
-                    <p className="text-xs font-medium mb-1">{message.senderName}</p>
+                    <p className="text-xs font-medium mb-1">{getFirstName(message.senderName)}</p>
                   )}
                   
                   {message.type === "location" ? (

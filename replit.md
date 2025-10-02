@@ -36,6 +36,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 2, 2025 - Privacy & Display Enhancements:**
+- **First Name Only:** Chat and service requests now display only the first name of users (not full name)
+- **Private Data Protection:** Email, phone, and CPF/CNPJ are hidden from public profile views
+- **Profile Privacy:** Personal data (email, phone, username) only visible on user's own profile
+
 **October 2, 2025 - Login System Enhancement:**
 - **Flexible Login:** Users can now login with CPF, CNPJ, or Email (all validated against password)
 - **CPF/CNPJ Validation:** Implemented Brazilian document validation with automatic formatting
