@@ -13,7 +13,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
-import { createPaymentIntent, confirmPayment } from "./stripe";
+import { createPaymentIntent, confirmPayment, createPixPaymentIntent, getPixPaymentDetails, checkPixPaymentStatus } from "./stripe";
 
 declare global {
   namespace Express {
@@ -244,36 +244,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/service-requests", authMiddleware, async (req, res) => {
     try {
-      const { paymentIntentId, ...requestData } = req.body;
+      const { paymentIntentId, paymentMethod = 'card', ...requestData } = req.body;
 
-      if (!paymentIntentId) {
-        return res.status(400).json({ message: "Pagamento obrigatório" });
-      }
+      if (paymentMethod === 'pix') {
+        const estimatedPrice = 50;
+        
+        const pixPaymentIntent = await createPixPaymentIntent(
+          estimatedPrice,
+          `Solicitação de serviço - ${requestData.serviceType}`
+        );
 
-      const paymentIntent = await confirmPayment(paymentIntentId);
-      
-      if (paymentIntent.status !== 'succeeded') {
-        return res.status(400).json({ message: "Pagamento não confirmado" });
-      }
-
-      const validatedData = insertServiceRequestSchema.parse({
-        ...requestData,
-        clientId: req.user!.id,
-        paymentIntentId,
-        paymentStatus: 'paid',
-      });
-      
-      const serviceRequest = await storage.createServiceRequest(validatedData);
-
-      const mechanics = await storage.getOnlineMechanics();
-      mechanics.forEach(mechanic => {
-        broadcastToUser(mechanic.id, {
-          type: 'new_service_request',
-          data: serviceRequest,
+        const validatedData = insertServiceRequestSchema.parse({
+          ...requestData,
+          clientId: req.user!.id,
+          paymentIntentId: pixPaymentIntent.id,
+          paymentStatus: 'pending',
         });
-      });
+        
+        const serviceRequest = await storage.createServiceRequest(validatedData);
 
-      res.json(serviceRequest);
+        await storage.updateServiceRequest(serviceRequest.id, {
+          paymentMethod: 'pix',
+          pixPaymentId: pixPaymentIntent.id,
+        });
+
+        res.json(serviceRequest);
+      } else {
+        if (!paymentIntentId) {
+          return res.status(400).json({ message: "Pagamento obrigatório" });
+        }
+
+        const paymentIntent = await confirmPayment(paymentIntentId);
+        
+        if (paymentIntent.status !== 'succeeded') {
+          return res.status(400).json({ message: "Pagamento não confirmado" });
+        }
+
+        const validatedData = insertServiceRequestSchema.parse({
+          ...requestData,
+          clientId: req.user!.id,
+          paymentIntentId,
+          paymentStatus: 'paid',
+        });
+        
+        const serviceRequest = await storage.createServiceRequest(validatedData);
+
+        const mechanics = await storage.getOnlineMechanics();
+        mechanics.forEach(mechanic => {
+          broadcastToUser(mechanic.id, {
+            type: 'new_service_request',
+            data: serviceRequest,
+          });
+        });
+
+        res.json(serviceRequest);
+      }
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -751,6 +776,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         res.json({ status: paymentIntent.status });
       }
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/payments/pix/:serviceRequestId", authMiddleware, async (req, res) => {
+    try {
+      const serviceRequest = await storage.getServiceRequest(req.params.serviceRequestId);
+      
+      if (!serviceRequest) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (serviceRequest.clientId !== req.user!.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (!serviceRequest.paymentIntentId) {
+        return res.status(400).json({ message: "Pagamento PIX não iniciado" });
+      }
+
+      const pixDetails = await getPixPaymentDetails(serviceRequest.paymentIntentId);
+      
+      if (!pixDetails) {
+        return res.status(400).json({ message: "Detalhes PIX não disponíveis ainda" });
+      }
+
+      res.json({
+        qrCode: pixDetails.qrCode,
+        expiresAt: pixDetails.expiresAt,
+        amount: serviceRequest.totalPrice || '50.00',
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/payments/pix/status/:serviceRequestId", authMiddleware, async (req, res) => {
+    try {
+      const serviceRequest = await storage.getServiceRequest(req.params.serviceRequestId);
+      
+      if (!serviceRequest) {
+        return res.status(404).json({ message: "Chamada não encontrada" });
+      }
+
+      if (serviceRequest.clientId !== req.user!.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (!serviceRequest.paymentIntentId) {
+        return res.status(400).json({ message: "Pagamento PIX não iniciado" });
+      }
+
+      const paymentStatus = await checkPixPaymentStatus(serviceRequest.paymentIntentId);
+      
+      if (paymentStatus.isPaid && serviceRequest.paymentStatus !== 'paid') {
+        await storage.updateServiceRequest(req.params.serviceRequestId, {
+          paymentStatus: 'paid',
+        });
+
+        const mechanics = await storage.getOnlineMechanics();
+        mechanics.forEach(mechanic => {
+          broadcastToUser(mechanic.id, {
+            type: 'new_service_request',
+            data: { ...serviceRequest, paymentStatus: 'paid' },
+          });
+        });
+      }
+
+      res.json({
+        status: paymentStatus.status,
+        isPaid: paymentStatus.isPaid,
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
