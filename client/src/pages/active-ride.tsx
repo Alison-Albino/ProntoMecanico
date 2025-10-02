@@ -579,17 +579,17 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
               </Button>
               
               <Button 
-                variant="outline" 
+                variant={unreadCount > 0 ? "default" : "outline"}
                 size="icon"
                 onClick={() => setLocation(`/ride/${requestId}/chat`)}
                 data-testid="button-message"
-                className="relative"
+                className={`relative ${unreadCount > 0 ? 'animate-pulse' : ''}`}
               >
                 <MessageCircle className="w-4 h-4" />
                 {unreadCount > 0 && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs shadow-lg animate-bounce"
                     data-testid="badge-unread-count"
                   >
                     {unreadCount > 9 ? '9+' : unreadCount}
