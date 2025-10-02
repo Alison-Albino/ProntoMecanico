@@ -12,6 +12,9 @@ interface ServiceData {
   pickupLng: string;
   pickupAddress: string;
   description?: string;
+  vehicleBrand?: string;
+  vehicleModel?: string;
+  vehiclePlate?: string;
 }
 
 export default function PaymentPage() {
