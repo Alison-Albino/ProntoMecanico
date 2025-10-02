@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pronto Mecânico is a mobile-first emergency automotive service platform that connects vehicle owners with mechanics and tow truck operators in real-time. The application provides a dual-sided marketplace where clients can request emergency services (mechanics, tow trucks) and service providers can accept and fulfill these requests. The platform features real-time location tracking, live chat communication, integrated payments via Stripe, and a wallet system for service providers.
+Pronto Mecânico is a mobile-first emergency automotive service platform connecting vehicle owners with mechanics and tow truck operators in real-time. It functions as a dual-sided marketplace for requesting and fulfilling emergency services, featuring real-time tracking, live chat, integrated payments via Mercado Pago PIX, and a mechanic wallet system. The project aims to provide quick, efficient, and transparent automotive assistance.
 
 ## User Preferences
 
@@ -10,294 +10,46 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
+### Frontend
 
-**Technology Stack:**
-- React with TypeScript for type safety
-- Vite as the build tool and development server
-- Wouter for client-side routing (lightweight alternative to React Router)
-- TanStack Query (React Query) for server state management
-- shadcn/ui component library built on Radix UI primitives
-- Tailwind CSS for styling with a custom dark-mode-first design system
+**Technology Stack:** React with TypeScript, Vite, Wouter for routing, TanStack Query for state management, shadcn/ui (Radix UI) for components, and Tailwind CSS for styling.
+**Design System:** Mobile-first, dark mode primary with custom color palette, bottom tab navigation, and a custom theme system using CSS variables.
+**Key Patterns:** Context-based authentication (JWT), WebSocket for real-time updates, notifications system (toasts, browser), custom hooks, and protected routes.
 
-**Design System:**
-- Dark mode primary with custom color palette inspired by service platforms like Uber and Rappi
-- Mobile-first responsive design with bottom tab navigation
-- Custom theme system using CSS variables for dynamic theming
-- Component library follows the "New York" style from shadcn/ui
+### Backend
 
-**Key Frontend Patterns:**
-- Context-based authentication (AuthProvider) managing user sessions with JWT tokens stored in localStorage
-- WebSocket provider for real-time updates (service requests, location tracking, chat messages)
-- Notifications system with unread message tracking, toast and browser notifications
-- Custom hooks for mobile detection, toast notifications, and form validation
-- Protected routes using authentication guard components
+**Technology Stack:** Express.js with TypeScript, WebSocket Server (ws library), and Bcrypt for password hashing.
+**API Design:** RESTful endpoints, Bearer token authentication, WebSocket for real-time features, and middleware for logging/error handling.
+**Authentication:** Session-based with in-memory token storage.
+**Data Storage:** PostgreSQL database (Neon Serverless) with Drizzle ORM, supporting full CRUD for users, service requests, chat, and transactions.
 
-### Backend Architecture
+### Core Features
 
-**Technology Stack:**
-- Express.js server with TypeScript
-- WebSocket Server (ws library) for real-time bidirectional communication
-- Session-based authentication using in-memory Map storage
-- Bcrypt for password hashing
-
-**API Design:**
-- RESTful endpoints under `/api` prefix
-- Bearer token authentication via Authorization headers
-- WebSocket connection for real-time features with token-based authentication
-- Middleware for request logging and error handling
-
-**Authentication Flow:**
-- Username/password login generating session tokens
-- Tokens stored in-memory Map on server
-- Client sends token via Authorization header or WebSocket query parameter
-- Middleware validates tokens and attaches user to request object
-
-**Data Storage:**
-- In-memory storage implementation (MemStorage class) as the current data layer
-- Designed with interface (IStorage) for future database integration
-- Schema definitions using Drizzle ORM for PostgreSQL (prepared but not yet connected)
-
-### Database Schema (Drizzle ORM - PostgreSQL Ready)
-
-**User Management:**
-- Users table with dual user types (client/mechanic)
-- Location tracking fields (currentLat, currentLng) for real-time GPS tracking
-- Base address system for mechanics (baseAddress, baseLat, baseLng) - used for distance/price calculations
-- Online status tracking
-- Rating system with average and total counts
-- Bank account information for withdrawals (account name, number, bank, PIX key)
-- Wallet balance for mechanics
-- Stripe customer integration
-
-**Mechanic Base Address System:**
-- Mechanics must configure their base address during registration or in the Profile page
-- Base address is captured using Google Places Autocomplete (Brazil-only)
-- All distance and price calculations use the mechanic's base address as the origin point
-- Route visualization on maps shows from base address to client location
-- Mechanics cannot accept service requests without a configured base address
-- Base address can be updated at any time in the Profile page
-- System properly handles edge cases including zero coordinates (equator/Greenwich meridian)
-- Backend filters pending service requests to show only those within 50km radius of mechanic's base address
-- GPS location is only required for clients (to show nearby mechanics), not for mechanics to receive requests
-- **Registration Flow (Fixed Oct 2025):**
-  - Base address data now sent during initial registration (not separate API call)
-  - Backend properly preserves baseAddress/baseLat/baseLng including zero values
-  - Schema accepts optional base address fields (string | number)
-  - Storage normalizes coordinates to strings consistently
-
-**Service Requests:**
-- Complete service lifecycle tracking (pending → accepted → completed/cancelled)
-- Pickup location and optional destination
-- Service type categorization (mechanic, tow_truck, emergency)
-- Distance-based pricing calculation (base fee + distance fee)
-- Platform fee and mechanic earnings separation
-- Payment integration with Stripe (payment intent tracking)
-- Rating and feedback system
-
-**Communication:**
-- Chat messages linked to service requests
-- Sender identification and timestamps
-- Real-time delivery via WebSocket
-
-**Financial Transactions:**
-- Transaction history for wallet operations
-- Type classification (mechanic_earnings, platform_fee, withdrawal, refund)
-- Status tracking (pending, completed, failed)
-- Service request association
-- **12-Hour Availability Delay System:**
-  - Earnings from completed services are marked with an `availableAt` timestamp (12 hours after service completion)
-  - Saldo Pendente: earnings that haven't reached their `availableAt` time yet
-  - Saldo Disponível: earnings that have passed their `availableAt` time and can be withdrawn
-- **Withdrawal System:**
-  - Two withdrawal methods: PIX and bank transfer
-  - Full bank account details stored (bank name, account number, branch, account holder name)
-  - Withdrawal requests include method and destination details
-  - Processing time: up to 2 business days
-  - Withdrawal transactions store method and destination details for audit trail
-
-### Real-Time Communication
-
-**WebSocket Implementation:**
-- Single WebSocket connection per authenticated user
-- Event-based messaging system with typed events:
-  - Service request lifecycle (created, accepted, completed, cancelled)
-  - Location updates from mechanics
-  - Chat messages
-  - Mechanic arrival notifications
-- Client-side event listeners using custom events
-- Automatic reconnection on token refresh
-
-**Notifications System:**
-- NotificationsProvider context managing unread message state
-- Unread message badges displayed on chat buttons (ActiveRidePage and MobileNav)
-- Toast notifications when new messages arrive (suppressed when on chat page)
-- Browser notifications with click-to-navigate functionality
-- Permission management in ProfilePage settings
-- Messages automatically marked as read when ChatPage opens
-- Uses wouter navigation for all notification actions (no page reloads)
-
-### Payment Integration
-
-**Mercado Pago PIX Integration:**
-- PIX payment method for service fees
-- QR Code generation for instant payment
-- Real-time payment status verification (polling every 3 seconds)
-- BRL currency support
-- Server-side payment creation and verification
-- Payment status tracking in service requests
-- **Test Mode Simulator:**
-  - "Simular Pagamento Aprovado" button appears in development/test mode
-  - Allows instant payment approval for testing without real transactions
-  - Automatically disappears in production with real credentials
-
-**Refund System:**
-- Automatic PIX refunds on service cancellation
-- Client can cancel service before mechanic arrival
-- Refund processed instantly in test mode
-- Real refunds via Mercado Pago API in production
-- Refund transactions tracked in wallet history
-- Visual confirmation message "Reembolso processado automaticamente via PIX"
-
-**Wallet System (Redesigned Oct 2025):**
-- **Three-tab interface:**
-  - **Ganhos:** All completed service earnings with timestamps
-  - **Aguardando:** Earnings waiting for 12h release period
-  - **Saques:** Withdrawal history (pending, completed, cancelled)
-- **Balance Cards:**
-  - Disponível para Saque (green): Immediate withdrawal amount
-  - Aguardando Liberação (orange): Locked for 12h after service
-  - Total de Ganhos (blue): Combined available + pending
-- **Withdrawal Flow:**
-  - PIX withdrawal only (simplified from PIX + bank transfer)
-  - Minimum balance validation
-  - PIX key type selection (email, CPF, phone, random)
-  - Bank data configuration via settings dialog
-  - Transaction details stored for audit trail
-- **Admin Withdrawal Processing System:**
-  - Admin panel at `/admin/withdrawals` for manual payout processing
-  - Lists pending withdrawals with mechanic details and PIX information
-  - Admins make manual transfers and confirm in system
-  - Status updates from "pending" to "completed" after admin confirmation
-  - Accessible from Profile page via "Processar Saques (Admin)" button
-  - Currently: any authenticated user can access (to be restricted to admin role in future)
-
-### Maps Integration
-
-**Google Maps API:**
-- Real-time location tracking and display
-- Route calculation and visualization
-- Distance and duration estimates
-- Marker positioning for clients and mechanics
-- Directions API for route path rendering
-- API key configuration via environment variable (VITE_GOOGLE_MAPS_API_KEY)
-
-**Address Input System (Uber-style):**
-- Google Places Autocomplete for address search
-- Fully typeable input with autocomplete suggestions
-- Manual text entry with automatic geocoding fallback
-- Country restriction to Brazil (BR)
-- Real-time address validation and coordinate extraction
-- No GPS button - simplified interface like Uber
-
-**External Navigation Integration (Oct 2025):**
-- Mechanics can open navigation in external apps from ActiveRidePage
-- DropdownMenu button with Navigation icon (visible only for mechanics in 'accepted' or 'arrived' status)
-- Two navigation options:
-  - **Waze:** Opens Waze app with route from mechanic base address to client location
-  - **Google Maps:** Opens Google Maps with turn-by-turn directions
-- Route visualization on in-app map shows preview before opening external app
-- Origin point: mechanic's base address (baseLat, baseLng)
-- Destination: client's pickup location (pickupLat, pickupLng)
-- URL format validation and proper parameter encoding
-- Opens in new tab/window with window.open (mobile OS handlers launch native apps)
+**User Management:** Dual user types (client/mechanic), real-time location tracking, online status, rating system, bank account integration for mechanics, and wallet balance.
+**Mechanic Base Address System:** Mechanics configure a base address for distance/price calculations, and service requests are filtered by a 50km radius from this base.
+**Service Requests:** Full lifecycle tracking, fixed pricing based on time of day (R$50.00 regular, R$100.00 after-hours), 20% platform fee, dual confirmation by client and mechanic, mutual rating system, and immediate payment release to mechanic's wallet after ratings.
+**Real-time Communication:** WebSocket for service updates, location tracking, chat messages, and notifications.
+**Notifications System:** Unread message tracking, toast and browser notifications, and permission management.
+**Payment Integration (Mercado Pago PIX):** PIX for service fees, QR code generation, real-time status verification, automatic refunds on cancellation, and a test mode simulator.
+**Wallet System:** Three-tab interface (Ganhos, Aguardando, Saques) showing available, pending, and total earnings. PIX-only withdrawal flow with minimum balance validation and admin processing system for payouts.
+**Maps Integration (Google Maps API):** Real-time location display, route calculation, address input with Google Places Autocomplete, and external navigation integration (Waze, Google Maps) for mechanics.
 
 ## Recent Changes
 
-**October 2, 2025 - Complete System Overhaul:**
-- **Mercado Pago PIX Integration:**
-  - Replaced Stripe with Mercado Pago for Brazilian PIX payments
-  - QR Code generation and real-time payment verification
-  - Test mode simulator for development
-  - Automatic refund system on service cancellation
-
-- **Wallet Redesign:**
-  - New 3-tab interface (Ganhos, Aguardando, Saques)
-  - Visual balance cards with color-coded statuses
-  - Simplified PIX-only withdrawal flow
-  - Settings dialog for bank data configuration
-
-- **Cancellation with Refund:**
-  - Clients can cancel services before mechanic arrival
-  - Automatic PIX refund processing (instant in test mode)
-  - Refund transactions tracked in wallet
-  - Visual confirmation messages
-
-- **History Page Enhancement:**
-  - Rich service details: ID, value, timestamp, location
-  - Expandable chat history integrated per service
-  - Color-coded status badges
-  - Responsive card-based layout
-
-- **Replit Environment Setup:**
-  - Fixed Stripe initialization to handle missing API keys gracefully
-  - Disabled Vite HMR to prevent WebSocket conflicts and page reloading issues
-  - Server properly configured to run on port 5000 with 0.0.0.0 host
-  - Payment features disabled when STRIPE_SECRET_KEY not configured (development mode)
-  - Resolved authentication persistence issue caused by HMR WebSocket failures
+**October 2, 2025 - Database Migration & Payment System Overhaul:**
+- **PostgreSQL Migration:** Migrated from in-memory storage to PostgreSQL database for complete data persistence
+- **Fixed Pricing System:** Implemented fixed service pricing - R$50.00 (6h-18h) and R$100.00 (18h-6h) with 20% platform fee automatically calculated
+- **Dual Confirmation Flow:** Both client and mechanic must confirm service completion before ratings
+- **Mutual Rating System:** Both parties rate each other (1-5 stars) after dual confirmation, calculated as cumulative average
+- **Immediate Payment Release:** Funds credited to mechanic wallet IMMEDIATELY after mutual ratings (removed 12-hour delay)
+- **Security Enhancement:** All service creation inputs validated with insertServiceRequestSchema to prevent privilege escalation
+- **Payment Flow:** Service creation → mechanic accepts → service complete → dual confirmation → mutual ratings → immediate payment release to wallet
 
 ## External Dependencies
 
-### Third-Party Services
-
-**Stripe:**
-- Payment processing for service fees
-- Configuration via STRIPE_SECRET_KEY environment variable (optional for development)
-- API version: 2025-08-27.basil
-- Handles payment intents, confirmations, and refunds
-- Server gracefully handles missing keys by disabling payment features
-
-**Google Maps:**
-- Location services and mapping
-- Requires VITE_GOOGLE_MAPS_API_KEY
-- Uses @vis.gl/react-google-maps for React integration
-- Provides geocoding, directions, and distance matrix services
-
-### Database
-
-**Neon Serverless PostgreSQL:**
-- Primary database provider (@neondatabase/serverless)
-- Drizzle ORM for schema management and queries
-- Configuration via DATABASE_URL environment variable
-- Migration files stored in /migrations directory
-- Current implementation uses in-memory storage but schema is production-ready
-
-### UI Component Libraries
-
-**Radix UI:**
-- Comprehensive set of unstyled, accessible components
-- All interactive components (dialogs, dropdowns, tooltips, etc.)
-- Keyboard navigation and ARIA compliance built-in
-
-**shadcn/ui:**
-- Pre-styled components built on Radix UI
-- Customizable via Tailwind CSS
-- "New York" style variant selected
-
-### Development Tools
-
-**Replit:**
-- Development environment integration
-- Hot module replacement support
-- Runtime error modal plugin
-- Cartographer plugin for development mode
-- Banner injection for non-Replit environments
-
-### Font Libraries
-
-**Google Fonts:**
-- Architects Daughter (decorative)
-- DM Sans (primary UI font)
-- Fira Code (monospace)
-- Geist Mono (monospace alternative)
-- Loaded via CDN in index.html
+**Mercado Pago:** PIX payment processing and refund system.
+**Google Maps API:** Geocoding, directions, and location services.
+**Neon Serverless PostgreSQL:** Primary cloud-hosted database.
+**Radix UI:** Unstyled, accessible UI primitives.
+**shadcn/ui:** Styled components built on Radix UI and Tailwind CSS.
+**Google Fonts:** Custom fonts (Architects Daughter, DM Sans, Fira Code, Geist Mono).
