@@ -110,19 +110,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertUserSchema.parse(req.body);
       
-      const existingUser = await storage.getUserByUsername(validatedData.username);
-      if (existingUser) {
-        return res.status(400).json({ message: "Usuário já existe" });
-      }
-
       const existingEmail = await storage.getUserByEmail(validatedData.email);
       if (existingEmail) {
         return res.status(400).json({ message: "Email já cadastrado" });
       }
 
+      const cleanCpfCnpj = validatedData.cpfCnpj.replace(/\D/g, '');
+      const existingCpfCnpj = await storage.getUserByCpfCnpj(cleanCpfCnpj);
+      if (existingCpfCnpj) {
+        return res.status(400).json({ message: "CPF/CNPJ já cadastrado" });
+      }
+
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       const user = await storage.createUser({
         ...validatedData,
+        cpfCnpj: cleanCpfCnpj,
         password: hashedPassword,
       });
 
@@ -147,14 +149,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = loginSchema.parse(req.body);
       
-      const user = await storage.getUserByUsername(validatedData.username);
+      const user = await storage.getUserByIdentifier(validatedData.identifier);
       if (!user) {
-        return res.status(401).json({ message: "Usuário ou senha inválidos" });
+        return res.status(401).json({ message: "CPF/Email ou senha inválidos" });
       }
 
       const isPasswordValid = await bcrypt.compare(validatedData.password, user.password);
       if (!isPasswordValid) {
-        return res.status(401).json({ message: "Usuário ou senha inválidos" });
+        return res.status(401).json({ message: "CPF/Email ou senha inválidos" });
       }
 
       if (user.userType === 'mechanic') {

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { MapPin } from 'lucide-react';
+import { MapPin, Eye, EyeOff } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -89,12 +89,34 @@ function AddressAutocomplete({
   );
 }
 
+function formatCPFCNPJ(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  
+  if (numbers.length <= 11) {
+    return numbers
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  } else {
+    return numbers
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  }
+}
+
 function LoginForm() {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
+  const [cpfCnpj, setCpfCnpj] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
   const [userType, setUserType] = useState<'client' | 'mechanic'>('client');
   const [isLoading, setIsLoading] = useState(false);
@@ -114,15 +136,30 @@ function LoginForm() {
     }
   };
 
+  const handleCpfCnpjChange = (value: string) => {
+    const formatted = formatCPFCNPJ(value);
+    setCpfCnpj(formatted);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(identifier, password);
         setLocation('/');
       } else {
+        if (password !== confirmPassword) {
+          toast({
+            title: "Erro",
+            description: "As senhas não coincidem",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         if (userType === 'mechanic' && (!mechanicAddress || !mechanicCoords)) {
           toast({
             title: "Erro",
@@ -134,10 +171,12 @@ function LoginForm() {
         }
 
         const registerData: any = { 
-          username, 
           password, 
+          confirmPassword,
           email, 
-          fullName, 
+          fullName,
+          cpfCnpj: cpfCnpj.replace(/\D/g, ''),
+          birthDate: new Date(birthDate).toISOString(),
           phone, 
           userType 
         };
@@ -176,19 +215,55 @@ function LoginForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="username">Usuário</Label>
-              <Input
-                id="username"
-                data-testid="input-username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-
-            {!isLogin && (
+            {isLogin ? (
               <>
+                <div>
+                  <Label htmlFor="identifier">CPF ou Email</Label>
+                  <Input
+                    id="identifier"
+                    data-testid="input-identifier"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Seu CPF ou email"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="password">Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label htmlFor="fullName">Nome Completo</Label>
+                  <Input
+                    id="fullName"
+                    data-testid="input-fullname"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Seu nome completo"
+                    required
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -197,17 +272,32 @@ function LoginForm() {
                     data-testid="input-email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="fullName">Nome Completo</Label>
+                  <Label htmlFor="cpfCnpj">CPF ou CNPJ</Label>
                   <Input
-                    id="fullName"
-                    data-testid="input-fullname"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    id="cpfCnpj"
+                    data-testid="input-cpfcnpj"
+                    value={cpfCnpj}
+                    onChange={(e) => handleCpfCnpjChange(e.target.value)}
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                    maxLength={18}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="birthDate">Data de Nascimento</Label>
+                  <Input
+                    id="birthDate"
+                    type="date"
+                    data-testid="input-birthdate"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
                     required
                   />
                 </div>
@@ -219,6 +309,7 @@ function LoginForm() {
                     data-testid="input-phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
                     required
                   />
                 </div>
@@ -262,20 +353,52 @@ function LoginForm() {
                     </p>
                   </div>
                 )}
+
+                <div>
+                  <Label htmlFor="password">Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      data-testid="input-confirmpassword"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Digite a senha novamente"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </>
             )}
-
-            <div>
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                data-testid="input-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
 
             <Button
               type="submit"

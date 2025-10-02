@@ -33,6 +33,21 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUserByCpfCnpj(cpfCnpj: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.cpfCnpj, cpfCnpj));
+    return user || undefined;
+  }
+
+  async getUserByIdentifier(identifier: string): Promise<User | undefined> {
+    const cleanIdentifier = identifier.replace(/\D/g, '');
+    
+    if (cleanIdentifier.length === 11 || cleanIdentifier.length === 14) {
+      return this.getUserByCpfCnpj(cleanIdentifier);
+    }
+    
+    return this.getUserByEmail(identifier);
+  }
+
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
   }
