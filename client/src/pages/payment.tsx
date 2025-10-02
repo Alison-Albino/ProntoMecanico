@@ -204,9 +204,44 @@ export default function PaymentPage() {
             </div>
 
             {paymentStatus === 'pending' && (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Aguardando pagamento...</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Aguardando pagamento...</span>
+                </div>
+                
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center mb-2">
+                    <strong>Modo Teste:</strong> Este é um QR Code de teste. Para simular o pagamento:
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-yellow-500/30 hover:bg-yellow-500/10"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/payments/simulate-approval/${pixData.paymentId}`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                          },
+                        });
+                        
+                        if (response.ok) {
+                          toast({
+                            title: "Pagamento simulado!",
+                            description: "Processando...",
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Erro ao simular pagamento:', error);
+                      }
+                    }}
+                    data-testid="button-simulate-payment"
+                  >
+                    ⚡ Simular Pagamento Aprovado (Teste)
+                  </Button>
+                </div>
               </div>
             )}
 

@@ -13,7 +13,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
-import { createPixPayment, getPaymentStatus, createPixPayout } from "./mercadopago";
+import { createPixPayment, getPaymentStatus, createPixPayout, simulatePaymentApproval } from "./mercadopago";
 
 declare global {
   namespace Express {
@@ -691,6 +691,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const status = await getPaymentStatus(req.params.paymentId);
       res.json(status);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/payments/simulate-approval/:paymentId", authMiddleware, async (req, res) => {
+    try {
+      const isTestMode = process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('TEST') || 
+                         process.env.NODE_ENV === 'development';
+      
+      if (!isTestMode) {
+        return res.status(403).json({ message: "Simulação disponível apenas em modo teste" });
+      }
+
+      simulatePaymentApproval(req.params.paymentId);
+
+      res.json({ 
+        message: "Pagamento aprovado (simulado)", 
+        status: "approved" 
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

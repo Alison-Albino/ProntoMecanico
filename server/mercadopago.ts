@@ -44,7 +44,19 @@ export async function createPixPayment(amount: number, description: string, paye
   }
 }
 
+const simulatedPayments = new Map<string, string>();
+
 export async function getPaymentStatus(paymentId: string) {
+  const simulatedStatus = simulatedPayments.get(paymentId);
+  if (simulatedStatus === 'approved') {
+    return {
+      id: paymentId,
+      status: 'approved',
+      isPaid: true,
+      statusDetail: 'accredited',
+    };
+  }
+
   if (!payment) {
     throw new Error('Mercado Pago não configurado');
   }
@@ -62,6 +74,11 @@ export async function getPaymentStatus(paymentId: string) {
     console.error('Erro ao consultar status do pagamento:', error);
     throw error;
   }
+}
+
+export function simulatePaymentApproval(paymentId: string) {
+  simulatedPayments.set(paymentId, 'approved');
+  console.log(`✅ Pagamento ${paymentId} aprovado (SIMULADO)`);
 }
 
 export async function createPixPayout(amount: number, pixKey: string, pixKeyType: string, description: string) {
