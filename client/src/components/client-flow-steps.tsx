@@ -31,6 +31,7 @@ interface AddressStepProps {
 export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
   const places = useMapsLibrary('places');
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [inputValue, setInputValue] = useState(initialAddress);
   const [selectedPlace, setSelectedPlace] = useState<google.maps.places.PlaceResult | null>(null);
@@ -61,6 +62,12 @@ export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
       }
     };
   }, [places]);
+
+  const handleInputFocus = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const getUserLocation = async () => {
     setIsGettingLocation(true);
@@ -144,8 +151,8 @@ export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
   const isValid = inputValue.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
-      <div className="flex-1 flex flex-col justify-center p-6 space-y-8 max-w-md mx-auto w-full">
+    <div ref={containerRef} className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20 overflow-y-auto pb-24">
+      <div className="flex-1 flex flex-col justify-center p-6 space-y-8 max-w-md mx-auto w-full min-h-[calc(100vh-6rem)]">
         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h2 className="text-3xl font-bold tracking-tight" data-testid="text-address-heading">
             Onde você está?
@@ -164,6 +171,7 @@ export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onFocus={handleInputFocus}
               placeholder="Informe seu endereço..."
               data-testid="input-pickup-address"
               autoComplete="off"
@@ -194,16 +202,17 @@ export function AddressStep({ onNext, initialAddress = '' }: AddressStepProps) {
         </div>
       </div>
 
-      <div className="p-6 animate-in fade-in slide-in-from-bottom-8 duration-500 delay-300">
-        <Button
-          onClick={handleNext}
-          disabled={!isValid}
-          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-          data-testid="button-next-from-address"
-        >
-          Próximo
-        </Button>
-      </div>
+      {isValid && (
+        <div className="fixed bottom-20 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <Button
+            onClick={handleNext}
+            className="w-full max-w-md mx-auto h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
+            data-testid="button-next-from-address"
+          >
+            Próximo
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -250,7 +259,7 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pb-24">
         <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
           <button
             onClick={onBack}
@@ -327,10 +336,10 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
         </div>
       </div>
 
-      <div className="p-6 border-t bg-background animate-in fade-in slide-in-from-bottom-10 duration-500 delay-300">
+      <div className="fixed bottom-20 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent">
         <Button
           onClick={handleNext}
-          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
+          className="w-full max-w-md mx-auto h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
           data-testid="button-next-from-service"
         >
           Continuar
@@ -373,7 +382,7 @@ export function PaymentStep({ onNext, onBack }: PaymentStepProps) {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pb-24">
         <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
           <button
             onClick={onBack}
@@ -446,10 +455,10 @@ export function PaymentStep({ onNext, onBack }: PaymentStepProps) {
         </div>
       </div>
 
-      <div className="p-6 border-t bg-background animate-in fade-in slide-in-from-bottom-10 duration-500 delay-300">
+      <div className="fixed bottom-20 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent">
         <Button
           onClick={handleNext}
-          className="w-full h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
+          className="w-full max-w-md mx-auto h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
           data-testid="button-confirm-payment"
         >
           Solicitar Mecânico
