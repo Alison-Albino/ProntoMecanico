@@ -36,6 +36,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 2, 2025 - Vehicle Selection Feature:**
+- **New Service Request Step:** Added vehicle information collection (brand, model, license plate) after service type selection
+- **Brazilian Vehicle Database:** Comprehensive database of 20 popular car brands and their models in shared/vehicles.ts
+- **Plate Validation:** Supports both old (ABC-1234) and Mercosul (ABC-1D23) license plate formats with automatic formatting
+- **Cascading Selection:** Model dropdown populates based on selected brand for better UX
+- **UI Integration:** Vehicle information displayed in waiting page, active ride, and mechanic request cards
+- **Data Persistence:** Vehicle data stored in database (vehicleBrand, vehicleModel, vehiclePlate fields) and flows through PIX payment process
+- **Brand Display:** Helper function getBrandLabel() maps stored slugs to readable labels (e.g., "chevrolet" → "Chevrolet")
+
 **October 2, 2025 - Mobile Notification Fix:**
 - **Black Screen Fix:** Browser notifications now only trigger when app is in background (document.hidden)
 - **Auto-dismiss:** Notifications automatically close after 5 seconds
