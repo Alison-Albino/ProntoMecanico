@@ -12,12 +12,19 @@ import {
   type ServiceData,
   type PaymentData,
 } from '@/components/client-flow-steps';
+import { VehicleSelection } from '@/components/VehicleSelection';
 import { MechanicHome } from '@/components/mechanic-home';
 
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-type Step = 'address' | 'service' | 'payment';
+type Step = 'address' | 'service' | 'vehicle' | 'payment';
+
+export interface VehicleData {
+  brand: string;
+  model: string;
+  plate: string;
+}
 
 function ClientHome() {
   const { token } = useAuth();
@@ -26,6 +33,7 @@ function ClientHome() {
   const [currentStep, setCurrentStep] = useState<Step>('address');
   const [addressData, setAddressData] = useState<AddressData | null>(null);
   const [serviceData, setServiceData] = useState<ServiceData | null>(null);
+  const [vehicleData, setVehicleData] = useState<VehicleData | null>(null);
   const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
   const handleAddressNext = (data: AddressData) => {
@@ -35,11 +43,16 @@ function ClientHome() {
 
   const handleServiceNext = (data: ServiceData) => {
     setServiceData(data);
+    setCurrentStep('vehicle');
+  };
+
+  const handleVehicleNext = (data: VehicleData) => {
+    setVehicleData(data);
     setCurrentStep('payment');
   };
 
   const handlePaymentNext = async (paymentData: PaymentData) => {
-    if (!addressData || !serviceData) return;
+    if (!addressData || !serviceData || !vehicleData) return;
 
     if (paymentData.method === 'pix') {
       localStorage.setItem('pendingServiceRequest', JSON.stringify({
@@ -48,6 +61,9 @@ function ClientHome() {
         pickupAddress: addressData.address,
         serviceType: serviceData.type,
         description: serviceData.description || undefined,
+        vehicleBrand: vehicleData.brand,
+        vehicleModel: vehicleData.model,
+        vehiclePlate: vehicleData.plate,
       }));
       
       setLocationPath('/payment');
@@ -63,6 +79,9 @@ function ClientHome() {
         pickupAddress: addressData.address,
         serviceType: serviceData.type,
         description: serviceData.description || undefined,
+        vehicleBrand: vehicleData.brand,
+        vehicleModel: vehicleData.model,
+        vehiclePlate: vehicleData.plate,
         paymentMethod: paymentData.method,
       };
 
@@ -103,8 +122,12 @@ function ClientHome() {
     setCurrentStep('address');
   };
 
-  const handleBackFromPayment = () => {
+  const handleBackFromVehicle = () => {
     setCurrentStep('service');
+  };
+
+  const handleBackFromPayment = () => {
+    setCurrentStep('vehicle');
   };
 
   return (
@@ -114,6 +137,9 @@ function ClientHome() {
       )}
       {currentStep === 'service' && (
         <ServiceTypeStep onNext={handleServiceNext} onBack={handleBackFromService} />
+      )}
+      {currentStep === 'vehicle' && (
+        <VehicleSelection onNext={handleVehicleNext} onBack={handleBackFromVehicle} />
       )}
       {currentStep === 'payment' && !isCreatingRequest && (
         <PaymentStep onNext={handlePaymentNext} onBack={handleBackFromPayment} />
