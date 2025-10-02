@@ -139,23 +139,45 @@ Preferred communication style: Simple, everyday language.
 
 ### Payment Integration
 
-**Stripe Integration:**
-- Payment intents for service payments
-- Automatic payment methods enabled
+**Mercado Pago PIX Integration:**
+- PIX payment method for service fees
+- QR Code generation for instant payment
+- Real-time payment status verification (polling every 3 seconds)
 - BRL currency support
-- Server-side payment intent creation and confirmation
-- Client-side integration using @stripe/react-stripe-js
+- Server-side payment creation and verification
 - Payment status tracking in service requests
+- **Test Mode Simulator:**
+  - "Simular Pagamento Aprovado" button appears in development/test mode
+  - Allows instant payment approval for testing without real transactions
+  - Automatically disappears in production with real credentials
 
-**Wallet System:**
-- Service providers accumulate earnings in platform wallet
-- Bank account or PIX key required for withdrawals
-- Transaction history tracking
-- Platform fee calculation (deducted from mechanic earnings)
+**Refund System:**
+- Automatic PIX refunds on service cancellation
+- Client can cancel service before mechanic arrival
+- Refund processed instantly in test mode
+- Real refunds via Mercado Pago API in production
+- Refund transactions tracked in wallet history
+- Visual confirmation message "Reembolso processado automaticamente via PIX"
+
+**Wallet System (Redesigned Oct 2025):**
+- **Three-tab interface:**
+  - **Ganhos:** All completed service earnings with timestamps
+  - **Aguardando:** Earnings waiting for 12h release period
+  - **Saques:** Withdrawal history (pending, completed, cancelled)
+- **Balance Cards:**
+  - Disponível para Saque (green): Immediate withdrawal amount
+  - Aguardando Liberação (orange): Locked for 12h after service
+  - Total de Ganhos (blue): Combined available + pending
+- **Withdrawal Flow:**
+  - PIX withdrawal only (simplified from PIX + bank transfer)
+  - Minimum balance validation
+  - PIX key type selection (email, CPF, phone, random)
+  - Bank data configuration via settings dialog
+  - Transaction details stored for audit trail
 - **Admin Withdrawal Processing System:**
   - Admin panel at `/admin/withdrawals` for manual payout processing
-  - Lists pending withdrawals with mechanic details and bank/PIX information
-  - Admins make manual transfers (PIX/TED) and confirm in system
+  - Lists pending withdrawals with mechanic details and PIX information
+  - Admins make manual transfers and confirm in system
   - Status updates from "pending" to "completed" after admin confirmation
   - Accessible from Profile page via "Processar Saques (Admin)" button
   - Currently: any authenticated user can access (to be restricted to admin role in future)
@@ -192,12 +214,37 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-**October 2, 2025 - Replit Environment Setup:**
-- Fixed Stripe initialization to handle missing API keys gracefully
-- Disabled Vite HMR to prevent WebSocket conflicts and page reloading issues
-- Server properly configured to run on port 5000 with 0.0.0.0 host
-- Payment features disabled when STRIPE_SECRET_KEY not configured (development mode)
-- Resolved authentication persistence issue caused by HMR WebSocket failures
+**October 2, 2025 - Complete System Overhaul:**
+- **Mercado Pago PIX Integration:**
+  - Replaced Stripe with Mercado Pago for Brazilian PIX payments
+  - QR Code generation and real-time payment verification
+  - Test mode simulator for development
+  - Automatic refund system on service cancellation
+
+- **Wallet Redesign:**
+  - New 3-tab interface (Ganhos, Aguardando, Saques)
+  - Visual balance cards with color-coded statuses
+  - Simplified PIX-only withdrawal flow
+  - Settings dialog for bank data configuration
+
+- **Cancellation with Refund:**
+  - Clients can cancel services before mechanic arrival
+  - Automatic PIX refund processing (instant in test mode)
+  - Refund transactions tracked in wallet
+  - Visual confirmation messages
+
+- **History Page Enhancement:**
+  - Rich service details: ID, value, timestamp, location
+  - Expandable chat history integrated per service
+  - Color-coded status badges
+  - Responsive card-based layout
+
+- **Replit Environment Setup:**
+  - Fixed Stripe initialization to handle missing API keys gracefully
+  - Disabled Vite HMR to prevent WebSocket conflicts and page reloading issues
+  - Server properly configured to run on port 5000 with 0.0.0.0 host
+  - Payment features disabled when STRIPE_SECRET_KEY not configured (development mode)
+  - Resolved authentication persistence issue caused by HMR WebSocket failures
 
 ## External Dependencies
 
