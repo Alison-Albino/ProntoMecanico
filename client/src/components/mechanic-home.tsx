@@ -29,6 +29,15 @@ export function MechanicHome() {
           description: "O mecânico chegou no local",
         });
       }
+
+      if (data.type === 'service_request_cancelled' && data.data) {
+        setPendingRequests(prev => prev.filter(req => req.id !== data.data.id));
+        toast({
+          title: "Chamada cancelada",
+          description: "O cliente cancelou a chamada",
+          variant: "destructive",
+        });
+      }
     };
 
     window.addEventListener('websocket-message', handleWebSocketMessage);
