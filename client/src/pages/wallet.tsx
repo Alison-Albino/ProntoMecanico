@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, AlertCircle, Info, XCircle, ArrowDownToLine, ArrowUpFromLine, Settings } from 'lucide-react';
+import { Wallet as WalletIcon, DollarSign, TrendingUp, Clock, CheckCircle, AlertCircle, Info, XCircle, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { useState } from 'react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -36,18 +36,9 @@ export default function WalletPage() {
   const { user, token, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
-  const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawMethod, setWithdrawMethod] = useState('pix');
-  
-  const [bankData, setBankData] = useState({
-    bankAccountName: user?.bankAccountName || '',
-    bankAccountNumber: user?.bankAccountNumber || '',
-    bankName: user?.bankName || '',
-    bankBranch: user?.bankBranch || '',
-    pixKey: user?.pixKey || '',
-    pixKeyType: user?.pixKeyType || 'email',
-  });
+  const [pixKey, setPixKey] = useState('');
+  const [pixKeyType, setPixKeyType] = useState('cpf');
 
   const { data: balance, isLoading: isLoadingBalance } = useQuery<BalanceData>({
     queryKey: ['/api/wallet/balance'],
@@ -59,30 +50,9 @@ export default function WalletPage() {
     enabled: !!token,
   });
 
-  const updateBankDataMutation = useMutation({
-    mutationFn: async (data: typeof bankData) => {
-      return await apiRequest('POST', '/api/wallet/bank-data', data);
-    },
-    onSuccess: async () => {
-      await refreshUser();
-      setIsBankDialogOpen(false);
-      toast({
-        title: "Dados salvos",
-        description: "Suas informações foram atualizadas com sucesso",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const requestWithdrawalMutation = useMutation({
-    mutationFn: async ({ amount, method }: { amount: number; method: string }) => {
-      return await apiRequest('POST', '/api/wallet/withdraw', { amount, method });
+    mutationFn: async ({ amount, pixKey, pixKeyType }: { amount: number; pixKey: string; pixKeyType: string }) => {
+      return await apiRequest('POST', '/api/wallet/withdraw', { amount, pixKey, pixKeyType });
     },
     onSuccess: () => {
       toast({
@@ -91,6 +61,8 @@ export default function WalletPage() {
       });
       setIsWithdrawDialogOpen(false);
       setWithdrawAmount('');
+      setPixKey('');
+      setPixKeyType('cpf');
       queryClient.invalidateQueries({ queryKey: ['/api/wallet/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/wallet/transactions'] });
     },
@@ -102,11 +74,6 @@ export default function WalletPage() {
       });
     },
   });
-
-  const handleBankDataSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateBankDataMutation.mutate(bankData);
-  };
 
   const handleWithdrawSubmit = () => {
     const amount = parseFloat(withdrawAmount);
@@ -128,19 +95,17 @@ export default function WalletPage() {
       return;
     }
 
-    if (withdrawMethod === 'pix' && !hasPixKey) {
+    if (!pixKey || pixKey.trim() === '') {
       toast({
-        title: "Dados incompletos",
-        description: "Configure sua chave PIX primeiro",
+        title: "Chave PIX obrigatória",
+        description: "Informe sua chave PIX para receber o saque",
         variant: "destructive",
       });
       return;
     }
 
-    requestWithdrawalMutation.mutate({ amount, method: withdrawMethod });
+    requestWithdrawalMutation.mutate({ amount, pixKey: pixKey.trim(), pixKeyType });
   };
-
-  const hasPixKey = !!bankData.pixKey || !!user?.pixKey;
 
   const earningsTransactions = transactions.filter(t => t.type === 'mechanic_earnings');
   const pendingTransactions = transactions.filter(t => {
@@ -232,88 +197,12 @@ export default function WalletPage() {
 
   return (
     <div className="container max-w-6xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <WalletIcon className="w-8 h-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold" data-testid="text-page-title">Carteira</h1>
-            <p className="text-muted-foreground">Gerencie seus ganhos e saques</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <WalletIcon className="w-8 h-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Carteira</h1>
+          <p className="text-muted-foreground">Gerencie seus ganhos e saques</p>
         </div>
-        {user?.userType === 'mechanic' && (
-          <Dialog open={isBankDialogOpen} onOpenChange={setIsBankDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                Dados Bancários
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Dados Bancários</DialogTitle>
-                <DialogDescription>
-                  Configure sua chave PIX para receber saques
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleBankDataSubmit} className="space-y-4 mt-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="pixKey">Chave PIX *</Label>
-                    <Input
-                      id="pixKey"
-                      value={bankData.pixKey}
-                      onChange={(e) => setBankData({...bankData, pixKey: e.target.value})}
-                      placeholder="email@exemplo.com, CPF ou telefone"
-                      data-testid="input-pix-key"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pixKeyType">Tipo de Chave</Label>
-                    <Select 
-                      value={bankData.pixKeyType} 
-                      onValueChange={(value) => setBankData({...bankData, pixKeyType: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="email">E-mail</SelectItem>
-                        <SelectItem value="cpf">CPF</SelectItem>
-                        <SelectItem value="phone">Telefone</SelectItem>
-                        <SelectItem value="random">Chave Aleatória</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Alert>
-                  <Info className="w-4 h-4" />
-                  <AlertDescription className="text-sm">
-                    Configure sua chave PIX para receber saques rapidamente. Os valores ficam disponíveis 12h após a conclusão do serviço.
-                  </AlertDescription>
-                </Alert>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsBankDialogOpen(false)}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={updateBankDataMutation.isPending}
-                    className="flex-1"
-                    data-testid="button-save-bank-data"
-                  >
-                    {updateBankDataMutation.isPending ? "Salvando..." : "Salvar"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
 
       {user?.userType === 'mechanic' && (
@@ -332,7 +221,7 @@ export default function WalletPage() {
               <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
-                    disabled={!balance || balance.available <= 0 || !hasPixKey}
+                    disabled={!balance || balance.available <= 0}
                     className="w-full"
                     data-testid="button-request-withdraw"
                   >
@@ -344,12 +233,12 @@ export default function WalletPage() {
                   <DialogHeader>
                     <DialogTitle>Solicitar Saque PIX</DialogTitle>
                     <DialogDescription>
-                      Informe o valor do saque
+                      Informe o valor e sua chave PIX
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 mt-4">
                     <div>
-                      <Label htmlFor="withdraw-amount">Valor</Label>
+                      <Label htmlFor="withdraw-amount">Valor do Saque</Label>
                       <Input
                         id="withdraw-amount"
                         type="number"
@@ -365,14 +254,40 @@ export default function WalletPage() {
                       </p>
                     </div>
 
-                    {hasPixKey && (
-                      <Alert>
-                        <Info className="w-4 h-4" />
-                        <AlertDescription>
-                          PIX: {bankData.pixKey || user?.pixKey} ({bankData.pixKeyType || user?.pixKeyType})
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <Label htmlFor="pix-key">Chave PIX</Label>
+                        <Input
+                          id="pix-key"
+                          value={pixKey}
+                          onChange={(e) => setPixKey(e.target.value)}
+                          placeholder="Digite sua chave PIX"
+                          data-testid="input-withdraw-pix-key"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label htmlFor="pix-key-type">Tipo de Chave</Label>
+                        <Select value={pixKeyType} onValueChange={setPixKeyType}>
+                          <SelectTrigger data-testid="select-pix-key-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cpf">CPF</SelectItem>
+                            <SelectItem value="cnpj">CNPJ</SelectItem>
+                            <SelectItem value="email">E-mail</SelectItem>
+                            <SelectItem value="phone">Telefone</SelectItem>
+                            <SelectItem value="random">Chave Aleatória</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <Info className="w-4 h-4" />
+                      <AlertDescription className="text-sm">
+                        O saque será processado em até 2 dias úteis e o valor será depositado na chave PIX informada.
+                      </AlertDescription>
+                    </Alert>
 
                     <Button 
                       onClick={handleWithdrawSubmit}

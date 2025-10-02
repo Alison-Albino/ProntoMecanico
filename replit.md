@@ -43,6 +43,12 @@ Preferred communication style: Simple, everyday language.
 - **Smart Identifier Detection:** Backend automatically detects if login identifier is CPF/CNPJ or email
 - **Security:** All inputs validated with Zod schemas, username auto-generated from CPF/CNPJ for backend compatibility
 
+**October 2, 2025 - PIX Withdrawal Flow Enhancement:**
+- **Direct PIX Input:** Removed pre-configuration requirement - mechanics now enter PIX key directly during withdrawal
+- **Simplified Flow:** Single-step withdrawal with immediate PIX key input (CPF, CNPJ, email, phone, or random key)
+- **Removed Settings:** Eliminated bank data configuration dialog for cleaner UX
+- **Backend Update:** Withdrawal endpoint now accepts pixKey and pixKeyType parameters directly
+
 **October 2, 2025 - Database Migration & Payment System Overhaul:**
 - **PostgreSQL Migration:** Migrated from in-memory storage to PostgreSQL database for complete data persistence
 - **Fixed Pricing System:** Implemented fixed service pricing - R$50.00 (6h-18h) and R$100.00 (18h-6h) with 20% platform fee automatically calculated

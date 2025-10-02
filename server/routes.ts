@@ -124,7 +124,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       const user = await storage.createUser({
         ...validatedData,
-        username: cleanCpfCnpj,
         cpfCnpj: cleanCpfCnpj,
         password: hashedPassword,
       });
@@ -970,11 +969,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
-      if (!user.pixKey || !user.pixKeyType) {
-        return res.status(400).json({ message: "Configure sua chave PIX primeiro em Configurações" });
+      const { amount, pixKey, pixKeyType } = req.body;
+      
+      if (!pixKey || !pixKeyType) {
+        return res.status(400).json({ message: "Informe sua chave PIX e o tipo de chave" });
       }
-
-      const { amount } = req.body;
       
       if (!amount || amount <= 0) {
         return res.status(400).json({ message: "Valor inválido" });
@@ -990,8 +989,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const payout = await createPixPayout(
         amount,
-        user.pixKey,
-        user.pixKeyType,
+        pixKey,
+        pixKeyType,
         `Saque via PIX - ${user.fullName}`
       );
 
@@ -999,14 +998,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user.id,
         amount,
         'pix',
-        `PIX: ${user.pixKey} (${user.pixKeyType})`,
+        `PIX: ${pixKey} (${pixKeyType})`,
         payout.id
       );
 
       res.json({ 
         message: "Saque solicitado com sucesso! Processaremos em até 2 dias úteis.",
         amount,
-        pixKey: user.pixKey
+        pixKey
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
