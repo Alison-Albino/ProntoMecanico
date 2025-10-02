@@ -186,14 +186,13 @@ function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button 
-          size="lg" 
+        <button 
           data-testid="button-new-request"
-          className="bg-gradient-to-r from-primary to-blue-600 text-primary-foreground shadow-lg transition-shadow duration-300 font-semibold rounded-full hover-elevate active-elevate-2 px-6"
+          className="bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-full font-semibold text-base shadow-2xl hover:shadow-3xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
         >
-          <Wrench className="w-5 h-5 mr-2" />
+          <Wrench className="w-5 h-5" />
           Solicitar Serviço
-        </Button>
+        </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -307,7 +306,17 @@ export default function HomePage() {
 
   useEffect(() => {
     if (user?.userType === 'client') {
+      // Iniciar com localização padrão (São Paulo) e obter localização real em background
+      setUserLocation({ lat: -23.5505, lng: -46.6333 });
       getCurrentLocation();
+    } else if (user?.userType === 'mechanic') {
+      // Para mecânico, usar endereço base cadastrado
+      if (user.baseLat && user.baseLng) {
+        setUserLocation({
+          lat: parseFloat(user.baseLat),
+          lng: parseFloat(user.baseLng),
+        });
+      }
     }
   }, [user, token]);
 
@@ -546,16 +555,19 @@ export default function HomePage() {
     <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={["places"]}>
       <div className="h-full flex flex-col">
         {user?.userType === 'mechanic' && (
-          <div className="bg-card border-b p-4">
+          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 shadow-sm">
             <div className="container mx-auto flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                <span className="font-medium">
-                  {isOnline ? 'Online - Recebendo Chamadas' : 'Offline - Não Receberá Chamadas'}
+                <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'} ${isOnline ? 'animate-pulse' : ''}`}></div>
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {isOnline ? 'Online' : 'Offline'}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {isOnline ? '• Recebendo chamadas' : '• Não receberá chamadas'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="online-toggle" className="text-sm">
+              <div className="flex items-center gap-3">
+                <Label htmlFor="online-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {isOnline ? 'Ficar Offline' : 'Ficar Online'}
                 </Label>
                 <Switch
@@ -569,84 +581,84 @@ export default function HomePage() {
           </div>
         )}
         <div className="flex-1 relative">
-          {userLocation ? (
-            <Map
-              mapId="service-map"
-              defaultZoom={16}
-              defaultCenter={userLocation}
-              center={userLocation}
-              gestureHandling="greedy"
-              disableDefaultUI={false}
-              mapTypeId="roadmap"
-              style={{ width: '100%', height: '100%' }}
-              data-testid="map-container"
-            >
+          <Map
+            mapId="service-map"
+            defaultZoom={user?.userType === 'mechanic' ? 15 : 13}
+            defaultCenter={userLocation || { lat: -23.5505, lng: -46.6333 }}
+            center={userLocation || { lat: -23.5505, lng: -46.6333 }}
+            gestureHandling="greedy"
+            disableDefaultUI={false}
+            zoomControl={true}
+            fullscreenControl={false}
+            streetViewControl={false}
+            mapTypeControl={false}
+            mapTypeId="roadmap"
+            style={{ width: '100%', height: '100%' }}
+            data-testid="map-container"
+          >
+            {userLocation && (
               <AdvancedMarker 
                 position={userLocation}
-                title={user?.userType === 'client' ? 'Sua localização' : 'Você'}
-              />
-              
-              {user?.userType === 'client' && nearbyMechanics.map((mechanic) => (
-                mechanic.currentLat && mechanic.currentLng && (
-                  <AdvancedMarker
-                    key={mechanic.id}
-                    position={{
-                      lat: parseFloat(mechanic.currentLat),
-                      lng: parseFloat(mechanic.currentLng),
-                    }}
-                    title={`${mechanic.fullName} - ⭐ ${parseFloat(mechanic.rating || '5').toFixed(1)}`}
-                  >
-                    <div className="bg-primary text-primary-foreground p-2 rounded-full shadow-lg">
-                      <Wrench className="w-5 h-5" />
-                    </div>
-                  </AdvancedMarker>
-                )
-              ))}
-              
-              {user?.userType === 'mechanic' && pendingRequests.map((request) => (
+                title={user?.userType === 'client' ? 'Sua localização' : user?.userType === 'mechanic' ? 'Seu endereço base' : 'Você'}
+              >
+                <div className="relative">
+                  <div className="w-12 h-12 bg-black dark:bg-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white dark:border-black">
+                    <div className="w-3 h-3 bg-white dark:bg-black rounded-full"></div>
+                  </div>
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-black dark:border-t-white"></div>
+                </div>
+              </AdvancedMarker>
+            )}
+            
+            {user?.userType === 'client' && nearbyMechanics.map((mechanic) => (
+              mechanic.currentLat && mechanic.currentLng && (
                 <AdvancedMarker
-                  key={request.id}
+                  key={mechanic.id}
                   position={{
-                    lat: parseFloat(request.pickupLat),
-                    lng: parseFloat(request.pickupLng),
+                    lat: parseFloat(mechanic.currentLat),
+                    lng: parseFloat(mechanic.currentLng),
                   }}
-                  title={`Chamada - ${request.serviceType}`}
+                  title={`${mechanic.fullName} - ⭐ ${parseFloat(mechanic.rating || '5').toFixed(1)}`}
                 >
-                  <div className="bg-destructive text-destructive-foreground p-2 rounded-full shadow-lg animate-pulse">
-                    <AlertCircle className="w-5 h-5" />
+                  <div className="relative">
+                    <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full shadow-xl flex items-center justify-center border-2 border-gray-200 dark:border-gray-700">
+                      <Wrench className="w-5 h-5 text-gray-800 dark:text-white" />
+                    </div>
                   </div>
                 </AdvancedMarker>
-              ))}
-            </Map>
-          ) : (
-            <div className="flex items-center justify-center h-full bg-muted">
-              <Card>
-                <CardContent className="p-6 text-center space-y-4">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Obtendo sua localização...
-                  </p>
-                  <Button onClick={getCurrentLocation} variant="outline" size="sm">
-                    Tentar Novamente
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+              )
+            ))}
+            
+            {user?.userType === 'mechanic' && pendingRequests.map((request) => (
+              <AdvancedMarker
+                key={request.id}
+                position={{
+                  lat: parseFloat(request.pickupLat),
+                  lng: parseFloat(request.pickupLng),
+                }}
+                title={`Chamada - ${request.serviceType}`}
+              >
+                <div className="relative animate-pulse">
+                  <div className="w-10 h-10 bg-red-500 rounded-full shadow-xl flex items-center justify-center border-2 border-white">
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="absolute inset-0 w-10 h-10 bg-red-500 rounded-full animate-ping opacity-75"></div>
+                </div>
+              </AdvancedMarker>
+            ))}
+          </Map>
 
           {user?.userType === 'client' && nearbyMechanics.length > 0 && (
             <div className="absolute top-4 left-4 z-10">
-              <Card className="shadow-lg">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <div className="bg-green-100 p-2 rounded-full">
-                    <Wrench className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} online</p>
-                    <p className="text-xs text-muted-foreground">Próximos a você</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-800">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} disponível{nearbyMechanics.length > 1 ? 'eis' : ''}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Próximos a você</p>
+                </div>
+              </div>
             </div>
           )}
 
