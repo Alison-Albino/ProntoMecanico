@@ -36,6 +36,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 2, 2025 - Login System Enhancement:**
+- **Flexible Login:** Users can now login with CPF, CNPJ, or Email (all validated against password)
+- **CPF/CNPJ Validation:** Implemented Brazilian document validation with automatic formatting
+- **Enhanced Registration:** Added CPF/CNPJ, birth date, and phone fields to user registration
+- **Smart Identifier Detection:** Backend automatically detects if login identifier is CPF/CNPJ or email
+- **Security:** All inputs validated with Zod schemas, username auto-generated from CPF/CNPJ for backend compatibility
+
 **October 2, 2025 - Database Migration & Payment System Overhaul:**
 - **PostgreSQL Migration:** Migrated from in-memory storage to PostgreSQL database for complete data persistence
 - **Fixed Pricing System:** Implemented fixed service pricing - R$50.00 (6h-18h) and R$100.00 (18h-6h) with 20% platform fee automatically calculated
