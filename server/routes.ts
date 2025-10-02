@@ -13,7 +13,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { WebSocketServer } from "ws";
-import { createPixPayment, getPaymentStatus } from "./mercadopago";
+import { createPixPayment, getPaymentStatus, createPixPayout } from "./mercadopago";
 
 declare global {
   namespace Express {
@@ -767,13 +767,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
-      if (!user.bankAccountName || !user.bankAccountNumber || !user.bankName) {
-        if (!user.pixKey) {
-          return res.status(400).json({ message: "Complete seus dados bancários ou PIX primeiro" });
-        }
+      if (!user.pixKey || !user.pixKeyType) {
+        return res.status(400).json({ message: "Configure sua chave PIX primeiro em Configurações" });
       }
 
-      const { amount, method } = req.body;
+      const { amount } = req.body;
       
       if (!amount || amount <= 0) {
         return res.status(400).json({ message: "Valor inválido" });
@@ -787,26 +785,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      let withdrawalDetails = '';
-      if (method === 'pix' && user.pixKey) {
-        withdrawalDetails = `PIX: ${user.pixKey}`;
-      } else if (method === 'bank_transfer') {
-        withdrawalDetails = `${user.bankName} - Ag: ${user.bankBranch || 'N/A'} - Conta: ${user.bankAccountNumber} - ${user.bankAccountName}`;
-      } else {
-        return res.status(400).json({ message: "Método de saque inválido ou dados bancários incompletos" });
+      try {
+        const payout = await createPixPayout(
+          amount,
+          user.pixKey,
+          user.pixKeyType,
+          `Saque via PIX - ${user.fullName}`
+        );
+
+        await storage.createWithdrawalRequest(
+          user.id,
+          amount,
+          'pix',
+          `PIX: ${user.pixKey}`,
+          payout.id
+        );
+
+        res.json({ 
+          message: "Saque PIX processado com sucesso! O valor será creditado em instantes.",
+          amount,
+          pixKey: user.pixKey
+        });
+      } catch (payoutError: any) {
+        console.error('Erro ao processar saque PIX:', payoutError);
+        
+        await storage.createWithdrawalRequest(
+          user.id,
+          amount,
+          'pix',
+          `PIX: ${user.pixKey}`,
+          undefined,
+          'failed'
+        );
+
+        return res.status(500).json({ 
+          message: "Erro ao processar saque PIX. Tente novamente ou entre em contato com o suporte." 
+        });
       }
-
-      await storage.createWithdrawalRequest(
-        user.id,
-        amount,
-        method,
-        withdrawalDetails
-      );
-
-      res.json({ 
-        message: "Saque solicitado com sucesso! Processaremos em até 2 dias úteis.",
-        amount 
-      });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

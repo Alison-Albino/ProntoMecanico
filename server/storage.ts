@@ -40,7 +40,7 @@ export interface IStorage {
   getAvailableBalance(userId: string): Promise<number>;
   getPendingBalance(userId: string): Promise<number>;
   updateTransactionStatus(id: string, status: string, completedAt?: Date): Promise<void>;
-  createWithdrawalRequest(userId: string, amount: number, method: string, details: string): Promise<Transaction>;
+  createWithdrawalRequest(userId: string, amount: number, method: string, details: string, pixPaymentId?: string, status?: string): Promise<Transaction>;
   getPendingWithdrawals(): Promise<Array<Transaction & { user: User }>>;
   completeWithdrawal(id: string): Promise<void>;
 }
@@ -372,7 +372,9 @@ export class MemStorage implements IStorage {
     userId: string, 
     amount: number, 
     method: string, 
-    details: string
+    details: string,
+    pixPaymentId?: string,
+    status?: string
   ): Promise<Transaction> {
     const id = randomUUID();
     const transaction: Transaction = {
@@ -381,17 +383,17 @@ export class MemStorage implements IStorage {
       serviceRequestId: null,
       type: "withdrawal",
       amount: (-amount).toFixed(2),
-      status: "pending",
+      status: status || (pixPaymentId ? "completed" : "pending"),
       description: `Saque via ${method === 'pix' ? 'PIX' : 'Transferência Bancária'}`,
       availableAt: null,
       withdrawalMethod: method,
       withdrawalDetails: details,
       pixQrCode: null,
-      pixPaymentId: null,
+      pixPaymentId: pixPaymentId || null,
       pixExpiration: null,
       pixType: method === 'pix' ? 'withdrawal' : null,
       createdAt: new Date(),
-      completedAt: null,
+      completedAt: pixPaymentId && !status ? new Date() : null,
     };
     this.transactions.set(id, transaction);
     return transaction;
