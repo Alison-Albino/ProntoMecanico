@@ -1,718 +1,152 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from 'wouter';
-import { APIProvider, Map, AdvancedMarker, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { APIProvider } from '@vis.gl/react-google-maps';
 import { useToast } from '@/hooks/use-toast';
-import { Wrench, Truck, AlertCircle, MapPin, Loader2, Search } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import {
+  AddressStep,
+  ServiceTypeStep,
+  PaymentStep,
+  type AddressData,
+  type ServiceData,
+  type PaymentData,
+} from '@/components/client-flow-steps';
+import { MechanicHome } from '@/components/mechanic-home';
+
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-function AddressAutocomplete({ 
-  onPlaceSelect,
-  value,
-  onChange
-}: { 
-  onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
-  value?: string;
-  onChange?: (value: string) => void;
-}) {
-  const places = useMapsLibrary('places');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [inputValue, setInputValue] = useState(value || '');
+type Step = 'address' | 'service' | 'payment';
 
-  // Sync external value changes (like from GPS) to the input
-  useEffect(() => {
-    if (value !== undefined && value !== inputValue) {
-      setInputValue(value);
-      if (inputRef.current) {
-        inputRef.current.value = value;
+function ClientHome() {
+  const { token } = useAuth();
+  const [, setLocationPath] = useLocation();
+  const { toast } = useToast();
+  const [currentStep, setCurrentStep] = useState<Step>('address');
+  const [addressData, setAddressData] = useState<AddressData | null>(null);
+  const [serviceData, setServiceData] = useState<ServiceData | null>(null);
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
+
+  const handleAddressNext = (data: AddressData) => {
+    setAddressData(data);
+    setCurrentStep('service');
+  };
+
+  const handleServiceNext = (data: ServiceData) => {
+    setServiceData(data);
+    setCurrentStep('payment');
+  };
+
+  const handlePaymentNext = async (paymentData: PaymentData) => {
+    if (!addressData || !serviceData) return;
+
+    setIsCreatingRequest(true);
+
+    try {
+      const requestBody = {
+        pickupLat: addressData.lat.toString(),
+        pickupLng: addressData.lng.toString(),
+        pickupAddress: addressData.address,
+        serviceType: serviceData.type,
+        description: serviceData.description || undefined,
+        paymentMethod: paymentData.method,
+      };
+
+      const response = await fetchWithAuth('/api/service-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erro ao criar solicitação');
       }
-    }
-  }, [value]);
 
-  useEffect(() => {
-    if (!places || !inputRef.current) return;
+      const serviceRequest = await response.json();
 
-    const options = {
-      componentRestrictions: { country: 'br' },
-      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-      types: ['address'],
-    };
+      toast({
+        title: 'Solicitação criada!',
+        description: paymentData.method === 'pix' 
+          ? 'Aguarde enquanto procuramos um mecânico...'
+          : 'Procurando mecânicos disponíveis...',
+      });
 
-    autocompleteRef.current = new places.Autocomplete(inputRef.current, options);
-
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current?.getPlace();
-      if (place?.formatted_address) {
-        setInputValue(place.formatted_address);
-        if (onChange) {
-          onChange(place.formatted_address);
-        }
+      if (paymentData.method === 'pix') {
+        setLocationPath(`/payment/${serviceRequest.id}`);
+      } else {
+        setLocationPath(`/ride/${serviceRequest.id}`);
       }
-      onPlaceSelect(place || null);
-    });
-
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    };
-  }, [places, onPlaceSelect, onChange]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-    if (onChange) {
-      onChange(newValue);
+    } catch (error: any) {
+      console.error('Error creating request:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível criar a solicitação',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingRequest(false);
     }
   };
 
+  const handleBackFromService = () => {
+    setCurrentStep('address');
+  };
+
+  const handleBackFromPayment = () => {
+    setCurrentStep('service');
+  };
+
   return (
-    <div className="relative" style={{ zIndex: 10 }}>
-      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center pointer-events-none">
-        <MapPin className="w-3 h-3 text-primary" />
-      </div>
-      <input
-        ref={inputRef}
-        value={inputValue}
-        onChange={handleInputChange}
-        placeholder="Digite um endereço..."
-        data-testid="input-address-autocomplete"
-        autoComplete="off"
-        className="flex h-11 w-full rounded-lg border border-input bg-background pl-11 pr-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-      />
+    <div className="h-full bg-background flex flex-col">
+      {currentStep === 'address' && (
+        <AddressStep onNext={handleAddressNext} initialAddress={addressData?.address} />
+      )}
+      {currentStep === 'service' && (
+        <ServiceTypeStep onNext={handleServiceNext} onBack={handleBackFromService} />
+      )}
+      {currentStep === 'payment' && !isCreatingRequest && (
+        <PaymentStep onNext={handlePaymentNext} onBack={handleBackFromPayment} />
+      )}
+      {isCreatingRequest && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-lg font-semibold">Criando solicitação...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function RequestDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
-  const { user, token } = useAuth();
-  const [, setLocation] = useLocation();
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [serviceType, setServiceType] = useState<string>('mechanic');
-  const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('');
-  const { toast } = useToast();
+export default function Home() {
+  const { user } = useAuth();
 
-  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
-    if (place?.geometry?.location) {
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      
-      setUserLocation({ lat, lng });
-      setAddress(place.formatted_address || '');
-    }
-  };
-
-  const geocodeAddress = async (addressText: string): Promise<{ lat: number; lng: number } | null> => {
-    if (!GOOGLE_MAPS_API_KEY) return null;
-    
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${GOOGLE_MAPS_API_KEY}&components=country:BR`
-      );
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        const location = data.results[0].geometry.location;
-        return { lat: location.lat, lng: location.lng };
-      }
-      return null;
-    } catch (error) {
-      console.error('Erro ao geocodificar endereço:', error);
-      return null;
-    }
-  };
-
-  const handleCreateRequest = async () => {
-    if (!address.trim()) {
-      toast({
-        title: "Erro",
-        description: "Por favor, informe o endereço",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    let finalLocation = userLocation;
-
-    if (!finalLocation) {
-      toast({
-        title: "Convertendo endereço...",
-        description: "Obtendo coordenadas do endereço digitado",
-      });
-
-      finalLocation = await geocodeAddress(address);
-      
-      if (!finalLocation) {
-        toast({
-          title: "Erro",
-          description: "Não foi possível encontrar as coordenadas deste endereço. Tente selecionar uma sugestão.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setUserLocation(finalLocation);
-    }
-
-    const serviceData = {
-      serviceType,
-      pickupLat: finalLocation.lat.toString(),
-      pickupLng: finalLocation.lng.toString(),
-      pickupAddress: address,
-      description: description || undefined,
-    };
-
-    localStorage.setItem('pendingServiceRequest', JSON.stringify(serviceData));
-    
-    onOpenChange(false);
-    setDescription('');
-    setAddress('');
-    setUserLocation(null);
-    setLocation('/payment');
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <button 
-          data-testid="button-new-request"
-          className="bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-full font-semibold text-base shadow-2xl hover:shadow-3xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
-        >
-          <Wrench className="w-5 h-5" />
-          Solicitar Serviço
-        </button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="text-xl">Solicitar Serviço</DialogTitle>
-          <DialogDescription>
-            Informe o local e detalhes do seu problema
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div>
-            <Label>Tipo de Serviço</Label>
-            <Select value={serviceType} onValueChange={setServiceType}>
-              <SelectTrigger data-testid="select-service-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mechanic">Mecânico</SelectItem>
-                <SelectItem value="tow_truck">Guincho</SelectItem>
-                <SelectItem value="road_assistance">Assistência na Estrada</SelectItem>
-                <SelectItem value="other">Outro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Local do Acionamento</Label>
-            <AddressAutocomplete
-              onPlaceSelect={handlePlaceSelect}
-              value={address}
-              onChange={setAddress}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="description" className="text-sm font-medium mb-2 block">
-              Descrição do Problema (opcional)
-            </Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              data-testid="input-description"
-              placeholder="Ex: Pneu furado, bateria descarregada, motor não liga..."
-              className="min-h-20 resize-none"
-            />
-          </div>
-
-          <div className="bg-muted/50 border border-border/50 p-3 rounded-lg space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Valores do Serviço</p>
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Taxa de acionamento</span>
-              <span className="text-sm font-semibold">R$ 50,00</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Por km rodado</span>
-              <span className="text-sm font-semibold">R$ 6,00/km</span>
-            </div>
-          </div>
-
-          <Button 
-            onClick={handleCreateRequest} 
-            className="w-full h-11 font-semibold"
-            size="lg"
-            data-testid="button-submit-request"
-          >
-            Continuar para Pagamento
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default function HomePage() {
-  const { user, token, updateUser } = useAuth();
-  const [, setLocation] = useLocation();
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-  const [nearbyMechanics, setNearbyMechanics] = useState<any[]>([]);
-  const { toast } = useToast();
-
-  const isOnline = user?.isOnline || false;
-
-  useEffect(() => {
-    const handleWebSocketMessage = (event: any) => {
-      const data = event.detail;
-      
-      if (data.type === 'service_request_accepted' && user?.userType === 'client') {
-        toast({
-          title: "Mecânico encontrado!",
-          description: `${data.mechanic.fullName} aceitou sua chamada`,
-        });
-        
-        setTimeout(() => {
-          setLocation(`/ride/${data.data.id}`);
-        }, 1500);
-      }
-      
-      if (data.type === 'mechanic_arrived') {
-        toast({
-          title: "Mecânico chegou!",
-          description: "O mecânico chegou no local",
-        });
-      }
-    };
-
-    window.addEventListener('websocket-message', handleWebSocketMessage);
-    return () => window.removeEventListener('websocket-message', handleWebSocketMessage);
-  }, [user, setLocation, toast]);
-
-  useEffect(() => {
-    if (user?.userType === 'client') {
-      // Iniciar com localização padrão (São Paulo) e obter localização real em background
-      setUserLocation({ lat: -23.5505, lng: -46.6333 });
-      getCurrentLocation();
-    } else if (user?.userType === 'mechanic') {
-      // Para mecânico, usar endereço base cadastrado
-      if (user.baseLat && user.baseLng) {
-        setUserLocation({
-          lat: parseFloat(user.baseLat),
-          lng: parseFloat(user.baseLng),
-        });
-      }
-    }
-  }, [user, token]);
-
-  useEffect(() => {
-    if (user?.userType === 'mechanic' && token && isOnline) {
-      loadPendingRequests();
-      const interval = setInterval(loadPendingRequests, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [user, token, isOnline]);
-
-  useEffect(() => {
-    if (user?.userType === 'client' && userLocation && token) {
-      loadNearbyMechanics();
-      const interval = setInterval(loadNearbyMechanics, 15000);
-      return () => clearInterval(interval);
-    }
-  }, [user, userLocation, token]);
-
-
-  const loadNearbyMechanics = async () => {
-    if (!userLocation) return;
-    
-    try {
-      const response = await fetchWithAuth(
-        `/api/mechanics/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=20`
-      );
-      
-      if (response.ok) {
-        const mechanics = await response.json();
-        setNearbyMechanics(mechanics);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar mecânicos:', error);
-    }
-  };
-
-  const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      return;
-    }
-
-    let watchId: number | null = null;
-    let bestAccuracy = Infinity;
-    let attempts = 0;
-
-    const handlePosition = async (position: GeolocationPosition) => {
-      const accuracy = position.coords.accuracy;
-      attempts++;
-      
-      // Se a precisão está melhorando, atualiza
-      if (accuracy < bestAccuracy) {
-        bestAccuracy = accuracy;
-        
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        
-        setUserLocation(location);
-        
-        if (token) {
-          fetchWithAuth('/api/location/update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(location),
-          }).catch(console.error);
-        }
-        
-        // Para quando encontrar boa precisão ou após várias tentativas
-        if (accuracy <= 50 || attempts >= 5) {
-          if (watchId) navigator.geolocation.clearWatch(watchId);
-        }
-      }
-    };
-
-    const handleError = (error: GeolocationPositionError) => {
-      console.error('Geolocation error:', error);
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-
-    // Usar watchPosition para melhorar precisão silenciosamente
-    watchId = navigator.geolocation.watchPosition(
-      handlePosition,
-      handleError,
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 30000
-      }
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p>Carregando...</p>
+      </div>
     );
-
-    // Para automaticamente após 20 segundos
-    setTimeout(() => {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    }, 20000);
-  };
-
-  const loadPendingRequests = async () => {
-    try {
-      const response = await fetchWithAuth('/api/service-requests/pending');
-      if (response.ok) {
-        const data = await response.json();
-        setPendingRequests(data);
-      }
-    } catch (error) {
-      console.error('Error loading requests:', error);
-    }
-  };
-
-  const handleAcceptRequest = async (requestId: string) => {
-    if (user?.baseLat === undefined || user?.baseLat === null || user?.baseLng === undefined || user?.baseLng === null) {
-      toast({
-        title: "Erro",
-        description: "Configure seu endereço base na página de Perfil antes de aceitar chamadas",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const request = pendingRequests.find(r => r.id === requestId);
-      if (!request) return;
-
-      const distance = calculateDistance(
-        parseFloat(user.baseLat),
-        parseFloat(user.baseLng),
-        parseFloat(request.pickupLat),
-        parseFloat(request.pickupLng)
-      );
-
-      const response = await fetchWithAuth(`/api/service-requests/${requestId}/accept`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ distance }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao aceitar chamada');
-      }
-
-      const acceptedRequest = await response.json();
-
-      toast({
-        title: "Sucesso",
-        description: `Chamada aceita! Valor total: R$ ${parseFloat(acceptedRequest.totalPrice).toFixed(2)}`,
-      });
-      
-      setLocation(`/ride/${requestId}`);
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
   }
-
-  const handleToggleOnline = async (checked: boolean) => {
-    try {
-      const response = await fetchWithAuth('/api/auth/toggle-online', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isOnline: checked }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao alterar status');
-      }
-
-      updateUser({ isOnline: checked });
-      
-      toast({
-        title: checked ? "Online" : "Offline",
-        description: checked 
-          ? "Você está online e pode receber chamadas" 
-          : "Você está offline e não receberá chamadas",
-      });
-
-      if (!checked) {
-        setPendingRequests([]);
-      }
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getServiceIcon = (type: string) => {
-    switch (type) {
-      case 'mechanic': return <Wrench className="w-4 h-4" />;
-      case 'tow_truck': return <Truck className="w-4 h-4" />;
-      default: return <AlertCircle className="w-4 h-4" />;
-    }
-  };
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-muted-foreground">
-              Configure VITE_GOOGLE_MAPS_API_KEY nas variáveis de ambiente
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center h-full p-4">
+        <p className="text-destructive">
+          Chave da API do Google Maps não configurada
+        </p>
       </div>
     );
   }
 
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={["places"]}>
-      <div className="h-full flex flex-col">
-        {user?.userType === 'mechanic' && (
-          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-            <div className="container mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'} ${isOnline ? 'animate-pulse' : ''}`}></div>
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {isOnline ? 'Online' : 'Offline'}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {isOnline ? '• Recebendo chamadas' : '• Não receberá chamadas'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Label htmlFor="online-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {isOnline ? 'Ficar Offline' : 'Ficar Online'}
-                </Label>
-                <Switch
-                  id="online-toggle"
-                  checked={isOnline}
-                  onCheckedChange={handleToggleOnline}
-                  data-testid="switch-online-status"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="flex-1 relative">
-          <Map
-            mapId="service-map"
-            defaultZoom={user?.userType === 'mechanic' ? 15 : 13}
-            defaultCenter={userLocation || { lat: -23.5505, lng: -46.6333 }}
-            center={userLocation || { lat: -23.5505, lng: -46.6333 }}
-            gestureHandling="greedy"
-            disableDefaultUI={false}
-            zoomControl={true}
-            fullscreenControl={false}
-            streetViewControl={false}
-            mapTypeControl={false}
-            mapTypeId="roadmap"
-            style={{ width: '100%', height: '100%' }}
-            data-testid="map-container"
-          >
-            {userLocation && (
-              <AdvancedMarker 
-                position={userLocation}
-                title={user?.userType === 'client' ? 'Sua localização' : user?.userType === 'mechanic' ? 'Seu endereço base' : 'Você'}
-              >
-                <div className="relative">
-                  <div className="w-12 h-12 bg-black dark:bg-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white dark:border-black">
-                    <div className="w-3 h-3 bg-white dark:bg-black rounded-full"></div>
-                  </div>
-                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-black dark:border-t-white"></div>
-                </div>
-              </AdvancedMarker>
-            )}
-            
-            {user?.userType === 'client' && nearbyMechanics.map((mechanic) => (
-              mechanic.currentLat && mechanic.currentLng && (
-                <AdvancedMarker
-                  key={mechanic.id}
-                  position={{
-                    lat: parseFloat(mechanic.currentLat),
-                    lng: parseFloat(mechanic.currentLng),
-                  }}
-                  title={`${mechanic.fullName} - ⭐ ${parseFloat(mechanic.rating || '5').toFixed(1)}`}
-                >
-                  <div className="relative">
-                    <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full shadow-xl flex items-center justify-center border-2 border-gray-200 dark:border-gray-700">
-                      <Wrench className="w-5 h-5 text-gray-800 dark:text-white" />
-                    </div>
-                  </div>
-                </AdvancedMarker>
-              )
-            ))}
-            
-            {user?.userType === 'mechanic' && pendingRequests.map((request) => (
-              <AdvancedMarker
-                key={request.id}
-                position={{
-                  lat: parseFloat(request.pickupLat),
-                  lng: parseFloat(request.pickupLng),
-                }}
-                title={`Chamada - ${request.serviceType}`}
-              >
-                <div className="relative animate-pulse">
-                  <div className="w-10 h-10 bg-red-500 rounded-full shadow-xl flex items-center justify-center border-2 border-white">
-                    <AlertCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="absolute inset-0 w-10 h-10 bg-red-500 rounded-full animate-ping opacity-75"></div>
-                </div>
-              </AdvancedMarker>
-            ))}
-          </Map>
-
-          {user?.userType === 'client' && nearbyMechanics.length > 0 && (
-            <div className="absolute top-4 left-4 z-10">
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-800">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {nearbyMechanics.length} mecânico{nearbyMechanics.length > 1 ? 's' : ''} disponível{nearbyMechanics.length > 1 ? 'eis' : ''}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Próximos a você</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {user?.userType === 'client' && (
-            <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10">
-              <RequestDialog 
-                isOpen={isRequestDialogOpen} 
-                onOpenChange={setIsRequestDialogOpen} 
-              />
-            </div>
-          )}
-
-          {user?.userType === 'mechanic' && isOnline && pendingRequests.length > 0 && (
-            <div className="absolute top-4 right-4 z-10 space-y-2 max-w-sm">
-              {pendingRequests.map((request) => (
-                <Card key={request.id} data-testid={`card-request-${request.id}`}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Nova Chamada
-                    </CardTitle>
-                    {getServiceIcon(request.serviceType)}
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {request.pickupAddress}
-                    </p>
-                    {request.description && (
-                      <p className="text-sm mb-2">{request.description}</p>
-                    )}
-                    {userLocation && (
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Distância: ~{calculateDistance(
-                          userLocation.lat,
-                          userLocation.lng,
-                          parseFloat(request.pickupLat),
-                          parseFloat(request.pickupLng)
-                        ).toFixed(1)} km
-                      </p>
-                    )}
-                    <Button
-                      onClick={() => handleAcceptRequest(request.id)}
-                      className="w-full"
-                      size="sm"
-                      data-testid={`button-accept-${request.id}`}
-                    >
-                      Aceitar Chamada
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={['places', 'geocoding']}>
+      {user.userType === 'client' ? <ClientHome /> : <MechanicHome />}
     </APIProvider>
   );
 }
