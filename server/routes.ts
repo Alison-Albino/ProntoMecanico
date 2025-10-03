@@ -91,13 +91,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  async function broadcastToAllMechanics(data: any, excludeUserId?: string) {
+  async function broadcastToAllMechanics(data: any, excludeUserId?: string, serviceType?: string) {
     const allUsers = await storage.getAllUsers();
-    const mechanics = allUsers.filter(u => 
-      u.userType === 'mechanic' && 
-      u.isOnline && 
-      u.id !== excludeUserId
-    );
+    const mechanics = allUsers.filter(u => {
+      const isBasicMatch = u.userType === 'mechanic' && u.isOnline && u.id !== excludeUserId;
+      
+      if (!isBasicMatch) return false;
+      
+      if (serviceType && u.serviceCategories) {
+        return u.serviceCategories.includes(serviceType);
+      }
+      
+      return !serviceType;
+    });
     
     mechanics.forEach(mechanic => {
       const client = clients.get(mechanic.id);
@@ -485,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await broadcastToAllMechanics({
         type: 'service_request_accepted_by_other',
         data: { id: req.params.id },
-      }, req.user!.id);
+      }, req.user!.id, updated.serviceType);
 
       res.json(updated);
     } catch (error: any) {

@@ -36,6 +36,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+**October 3, 2025 - Service Category System Implementation:**
+- **Multiple Service Categories:** Providers can now offer multiple types of services (Mecânico, Guincho, Assistência, Chaveiro, Eletricista, Borracheiro)
+- **Category-based Filtering:** Service requests are only sent to providers who offer that specific category
+- **Database Schema:** Added serviceCategories array field to users table for storing provider's selected service categories
+- **Registration Update:** Providers must select at least one service category during registration
+- **Profile Management:** Providers can edit their service categories through their profile page
+- **Smart Notifications:** WebSocket notifications and pending requests API filter by service category to ensure providers only receive relevant requests
+- **New Service Types:** Added three new service categories - Chaveiro (Locksmith), Eletricista (Electrician), Borracheiro (Tire Service)
+
 **October 2, 2025 - Vehicle Selection Feature:**
 - **New Service Request Step:** Added vehicle information collection (brand, model, license plate) after service type selection
 - **Brazilian Vehicle Database:** Comprehensive database of 20 popular car brands and their models in shared/vehicles.ts
