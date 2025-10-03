@@ -638,6 +638,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updated = await storage.updateServiceRequest(req.params.id, updateData);
 
+      const bothConfirmed = updated && updated.clientConfirmed && updated.mechanicConfirmed;
+
+      if (bothConfirmed && request.mechanicId && request.mechanicEarnings && request.platformFee) {
+        const mechanicEarnings = parseFloat(request.mechanicEarnings);
+        const platformFee = parseFloat(request.platformFee);
+
+        await storage.createTransaction(
+          request.mechanicId,
+          'mechanic_earnings',
+          mechanicEarnings,
+          `Ganho do serviço - ${request.serviceType}`,
+          req.params.id
+        );
+
+        await storage.createTransaction(
+          request.clientId,
+          'platform_fee',
+          platformFee,
+          `Taxa da plataforma - ${request.serviceType}`,
+          req.params.id
+        );
+
+        await storage.updateWalletBalance(request.mechanicId, mechanicEarnings);
+        
+        broadcastToUser(request.mechanicId, {
+          type: 'payment_released',
+          data: { serviceRequestId: req.params.id, amount: request.mechanicEarnings },
+        });
+      }
+
       if (isClient && request.mechanicId) {
         broadcastToUser(request.mechanicId, {
           type: 'service_request_confirmed',
@@ -710,36 +740,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateUserRating(userToRate, parseInt(rating.toString()));
       }
 
-      const bothRated = updated && updated.clientRating && updated.mechanicRating;
-
-      if (bothRated && request.mechanicId && request.mechanicEarnings && request.platformFee) {
-        const mechanicEarnings = parseFloat(request.mechanicEarnings);
-        const platformFee = parseFloat(request.platformFee);
-
-        await storage.createTransaction(
-          request.mechanicId,
-          'mechanic_earnings',
-          mechanicEarnings,
-          `Ganho do serviço - ${request.serviceType}`,
-          req.params.id
-        );
-
-        await storage.createTransaction(
-          request.clientId,
-          'platform_fee',
-          platformFee,
-          `Taxa da plataforma - ${request.serviceType}`,
-          req.params.id
-        );
-
-        await storage.updateWalletBalance(request.mechanicId, mechanicEarnings);
-        
-        broadcastToUser(request.mechanicId, {
-          type: 'payment_released',
-          data: { serviceRequestId: req.params.id, amount: request.mechanicEarnings },
-        });
-      }
-
       if (isClient && request.mechanicId) {
         broadcastToUser(request.mechanicId, {
           type: 'service_request_rated',
@@ -752,7 +752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json({ serviceRequest: updated, bothRated });
+      res.json({ serviceRequest: updated });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
