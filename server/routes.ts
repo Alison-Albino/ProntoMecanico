@@ -108,7 +108,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
+      console.log('[REGISTER] Received data:', {
+        email: req.body.email,
+        userType: req.body.userType,
+        hasBaseAddress: !!req.body.baseAddress
+      });
+
       const validatedData = insertUserSchema.parse(req.body);
+      console.log('[REGISTER] Validated userType:', validatedData.userType);
       
       const normalizedEmail = validatedData.email.toLowerCase();
       
@@ -126,6 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       const username = `user_${cleanCpfCnpj}`;
       
+      console.log('[REGISTER] Creating user with userType:', validatedData.userType);
       const user = await storage.createUser({
         ...validatedData,
         email: normalizedEmail,
@@ -134,12 +142,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username,
       } as any);
 
+      console.log('[REGISTER] User created:', {
+        id: user.id,
+        userType: user.userType,
+        email: user.email
+      });
+
       if (user.userType === 'mechanic') {
         await storage.updateUserOnlineStatus(user.id, true);
+        console.log('[REGISTER] Mechanic set to online');
       }
 
       const updatedUser = await storage.getUser(user.id);
       const finalUser = updatedUser || user;
+
+      console.log('[REGISTER] Final user type:', finalUser.userType);
 
       const { password, ...userWithoutPassword } = finalUser;
       const token = generateSessionToken();
@@ -147,6 +164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ user: userWithoutPassword, token });
     } catch (error: any) {
+      console.error('[REGISTER] Error:', error);
       res.status(400).json({ message: error.message });
     }
   });
