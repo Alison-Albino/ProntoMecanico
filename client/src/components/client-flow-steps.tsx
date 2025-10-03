@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation } from 'lucide-react';
+import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation, Key, Zap, CircleDot } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -247,6 +247,27 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
       title: 'Assistência',
       subtitle: 'Ajuda na estrada',
       gradient: 'from-orange-500 to-red-500',
+    },
+    {
+      id: 'locksmith',
+      icon: Key,
+      title: 'Chaveiro',
+      subtitle: 'Chaves e fechaduras',
+      gradient: 'from-yellow-500 to-amber-500',
+    },
+    {
+      id: 'electrician',
+      icon: Zap,
+      title: 'Eletricista',
+      subtitle: 'Serviços elétricos',
+      gradient: 'from-green-500 to-emerald-500',
+    },
+    {
+      id: 'tire_service',
+      icon: CircleDot,
+      title: 'Borracheiro',
+      subtitle: 'Pneus e calibragem',
+      gradient: 'from-gray-600 to-slate-700',
     },
   ];
 

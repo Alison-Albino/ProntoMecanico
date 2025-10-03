@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { MapPin, Eye, EyeOff } from 'lucide-react';
@@ -106,6 +107,15 @@ function formatCPFCNPJ(value: string): string {
   }
 }
 
+const SERVICE_CATEGORIES = [
+  { value: "mechanic", label: "Mecânico" },
+  { value: "tow_truck", label: "Guincho" },
+  { value: "road_assistance", label: "Assistência 24h" },
+  { value: "locksmith", label: "Chaveiro" },
+  { value: "electrician", label: "Eletricista" },
+  { value: "tire_service", label: "Borracheiro" },
+];
+
 function LoginForm() {
   const [isLogin, setIsLogin] = useState(true);
   const [identifier, setIdentifier] = useState('');
@@ -119,6 +129,7 @@ function LoginForm() {
   const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
   const [userType, setUserType] = useState<'client' | 'mechanic'>('client');
+  const [serviceCategories, setServiceCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [mechanicAddress, setMechanicAddress] = useState('');
   const [mechanicCoords, setMechanicCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -170,6 +181,16 @@ function LoginForm() {
           return;
         }
 
+        if (userType === 'mechanic' && serviceCategories.length === 0) {
+          toast({
+            title: "Erro",
+            description: "Por favor, selecione pelo menos 1 categoria de serviço",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         const registerData: any = { 
           password, 
           confirmPassword,
@@ -181,10 +202,13 @@ function LoginForm() {
           userType 
         };
 
-        if (userType === 'mechanic' && mechanicAddress && mechanicCoords) {
-          registerData.baseAddress = mechanicAddress;
-          registerData.baseLat = mechanicCoords.lat;
-          registerData.baseLng = mechanicCoords.lng;
+        if (userType === 'mechanic') {
+          registerData.serviceCategories = serviceCategories;
+          if (mechanicAddress && mechanicCoords) {
+            registerData.baseAddress = mechanicAddress;
+            registerData.baseLat = mechanicCoords.lat;
+            registerData.baseLng = mechanicCoords.lng;
+          }
         }
 
         await register(registerData);
@@ -339,19 +363,52 @@ function LoginForm() {
                 </div>
 
                 {userType === 'mechanic' && (
-                  <div>
-                    <Label>Endereço Base</Label>
-                    <div className="mt-2">
-                      <AddressAutocomplete
-                        value={mechanicAddress}
-                        onChange={setMechanicAddress}
-                        onPlaceSelect={handlePlaceSelect}
-                      />
+                  <>
+                    <div>
+                      <Label>Categorias de Serviço *</Label>
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        {SERVICE_CATEGORIES.map((category) => (
+                          <div key={category.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`category-${category.value}`}
+                              data-testid={`checkbox-category-${category.value}`}
+                              checked={serviceCategories.includes(category.value)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setServiceCategories([...serviceCategories, category.value]);
+                                } else {
+                                  setServiceCategories(serviceCategories.filter(c => c !== category.value));
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`category-${category.value}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                            >
+                              {category.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Selecione pelo menos 1 categoria
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      De onde você atenderá as chamadas
-                    </p>
-                  </div>
+
+                    <div>
+                      <Label>Endereço Base</Label>
+                      <div className="mt-2">
+                        <AddressAutocomplete
+                          value={mechanicAddress}
+                          onChange={setMechanicAddress}
+                          onPlaceSelect={handlePlaceSelect}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        De onde você atenderá as chamadas
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 <div>
