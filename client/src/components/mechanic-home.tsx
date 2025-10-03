@@ -278,6 +278,7 @@ export function MechanicHome() {
                   {request.vehicleBrand && request.vehicleModel && (
                     <p className="text-sm mb-2">
                       <strong>Veículo:</strong> {getBrandLabel(request.vehicleBrand)} {request.vehicleModel}
+                      {request.vehicleYear && ` ${request.vehicleYear}`}
                       {request.vehiclePlate && ` • ${request.vehiclePlate}`}
                     </p>
                   )}

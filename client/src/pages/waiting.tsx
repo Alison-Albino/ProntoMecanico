@@ -174,6 +174,7 @@ export default function WaitingPage() {
                 <p className="text-sm font-medium">Veículo:</p>
                 <p className="text-sm text-muted-foreground" data-testid="text-vehicle">
                   {getBrandLabel(serviceRequest.vehicleBrand)} {serviceRequest.vehicleModel}
+                  {serviceRequest.vehicleYear && ` ${serviceRequest.vehicleYear}`}
                   {serviceRequest.vehiclePlate && ` • ${serviceRequest.vehiclePlate}`}
                 </p>
               </div>

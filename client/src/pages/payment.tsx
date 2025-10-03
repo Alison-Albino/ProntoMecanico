@@ -15,6 +15,7 @@ interface ServiceData {
   vehicleBrand?: string;
   vehicleModel?: string;
   vehiclePlate?: string;
+  vehicleYear?: string;
 }
 
 export default function PaymentPage() {

@@ -24,6 +24,7 @@ export interface VehicleData {
   brand: string;
   model: string;
   plate: string;
+  year: string;
 }
 
 function ClientHome() {
@@ -64,6 +65,7 @@ function ClientHome() {
         vehicleBrand: vehicleData.brand,
         vehicleModel: vehicleData.model,
         vehiclePlate: vehicleData.plate,
+        vehicleYear: vehicleData.year,
       }));
       
       setLocationPath('/payment');
@@ -82,6 +84,7 @@ function ClientHome() {
         vehicleBrand: vehicleData.brand,
         vehicleModel: vehicleData.model,
         vehiclePlate: vehicleData.plate,
+        vehicleYear: vehicleData.year,
         paymentMethod: paymentData.method,
       };
 

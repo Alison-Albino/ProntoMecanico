@@ -558,6 +558,7 @@ function ActiveRideContent({ requestId }: { requestId: string }) {
             {serviceRequest.vehicleBrand && serviceRequest.vehicleModel && (
               <div className="text-sm">
                 <strong>Veículo:</strong> {getBrandLabel(serviceRequest.vehicleBrand)} {serviceRequest.vehicleModel}
+                {serviceRequest.vehicleYear && ` ${serviceRequest.vehicleYear}`}
                 {serviceRequest.vehiclePlate && ` • ${serviceRequest.vehiclePlate}`}
               </div>
             )}

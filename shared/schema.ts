@@ -45,6 +45,7 @@ export const serviceRequests = pgTable("service_requests", {
   vehicleBrand: text("vehicle_brand"),
   vehicleModel: text("vehicle_model"),
   vehiclePlate: text("vehicle_plate"),
+  vehicleYear: text("vehicle_year"),
   distance: decimal("distance", { precision: 10, scale: 2 }),
   isAfterHours: boolean("is_after_hours").default(false),
   baseFee: decimal("base_fee", { precision: 10, scale: 2 }).default("50.00"),
