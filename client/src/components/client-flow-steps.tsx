@@ -390,29 +390,8 @@ interface PaymentStepProps {
 }
 
 export function PaymentStep({ onNext, onBack }: PaymentStepProps) {
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'pix'>('pix');
-
-  const paymentMethods = [
-    {
-      id: 'pix' as const,
-      icon: QrCode,
-      title: 'PIX',
-      subtitle: 'Pagamento instantâneo',
-      recommended: true,
-      gradient: 'from-emerald-500 to-teal-500',
-    },
-    {
-      id: 'card' as const,
-      icon: CreditCard,
-      title: 'Cartão de Crédito',
-      subtitle: 'Pagamento seguro',
-      recommended: false,
-      gradient: 'from-blue-500 to-indigo-500',
-    },
-  ];
-
   const handleNext = () => {
-    onNext({ method: selectedMethod });
+    onNext({ method: 'pix' });
   };
 
   return (
@@ -432,59 +411,51 @@ export function PaymentStep({ onNext, onBack }: PaymentStepProps) {
         <div className="p-6 space-y-8 max-w-md mx-auto w-full">
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-3xl font-bold tracking-tight" data-testid="text-payment-heading">
-              Forma de pagamento
+              Pagamento via PIX
             </h2>
             <p className="text-muted-foreground text-lg">
-              Escolha como deseja pagar pelo serviço
+              Forma de pagamento rápida e segura
             </p>
           </div>
 
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-100">
-            {paymentMethods.map((method, index) => {
-              const Icon = method.icon;
-              const isSelected = selectedMethod === method.id;
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-100">
+            <div className="w-full p-6 rounded-2xl border-2 border-primary bg-primary/5 shadow-lg">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
+                  <QrCode className="w-8 h-8 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <h3 className="text-xl font-semibold">PIX</h3>
+                  <p className="text-sm text-muted-foreground">Pagamento instantâneo</p>
+                </div>
+              </div>
               
-              return (
-                <button
-                  key={method.id}
-                  onClick={() => setSelectedMethod(method.id)}
-                  data-testid={`button-payment-${method.id}`}
-                  className={`w-full p-5 rounded-2xl border-2 transition-all duration-300 group relative overflow-hidden ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-lg scale-[1.02]'
-                      : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                  }`}
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  {method.recommended && (
-                    <div className="absolute top-3 right-3 px-2 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
-                      Recomendado
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 relative z-10">
-                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${method.gradient} flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}>
-                      <Icon className="w-7 h-7 text-white" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <h3 className="text-lg font-semibold">{method.title}</h3>
-                      <p className="text-sm text-muted-foreground">{method.subtitle}</p>
-                    </div>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
-                    }`}>
-                      {isSelected && (
-                        <div className="w-3 h-3 rounded-full bg-primary-foreground"></div>
-                      )}
-                    </div>
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-emerald-600 font-bold">✓</span>
                   </div>
-                </button>
-              );
-            })}
+                  <p className="text-sm">Aprovação instantânea</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                  </div>
+                  <p className="text-sm">QR Code gerado automaticamente</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                  </div>
+                  <p className="text-sm">Totalmente seguro</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="p-4 bg-muted/50 rounded-2xl animate-in fade-in slide-in-from-bottom-8 duration-500 delay-200">
             <p className="text-sm text-muted-foreground text-center">
-              💡 O valor do serviço será calculado após um mecânico aceitar sua chamada
+              💡 O valor do serviço será calculado após um prestador aceitar sua chamada
             </p>
           </div>
         </div>
