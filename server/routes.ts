@@ -124,12 +124,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      const username = `user_${cleanCpfCnpj}`;
+      
       const user = await storage.createUser({
         ...validatedData,
         email: normalizedEmail,
         cpfCnpj: cleanCpfCnpj,
         password: hashedPassword,
-      });
+        username,
+      } as any);
 
       if (user.userType === 'mechanic') {
         await storage.updateUserOnlineStatus(user.id, true);
