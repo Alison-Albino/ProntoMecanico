@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation, Key, Zap, CircleDot } from 'lucide-react';
+import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation, Key, Zap, CircleDot, Battery, Bike } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -269,6 +269,20 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
       subtitle: 'Pneus e calibragem',
       gradient: 'from-gray-600 to-slate-700',
     },
+    {
+      id: 'battery_support',
+      icon: Battery,
+      title: 'Suporte Bateria',
+      subtitle: 'Carga e troca de bateria',
+      gradient: 'from-teal-500 to-cyan-600',
+    },
+    {
+      id: 'motorcycle_mechanic',
+      icon: Bike,
+      title: 'Mecânico de Moto',
+      subtitle: 'Especialista em motos',
+      gradient: 'from-indigo-500 to-blue-600',
+    },
   ];
 
   const handleNext = () => {
@@ -280,7 +294,7 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
-      <div className="flex-1 overflow-y-auto pb-40">
+      <div className="flex-1 overflow-y-auto pb-52">
         <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
           <button
             onClick={onBack}

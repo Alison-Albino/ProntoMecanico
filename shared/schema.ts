@@ -109,6 +109,8 @@ export const SERVICE_CATEGORIES = [
   { value: "locksmith", label: "Chaveiro" },
   { value: "electrician", label: "Eletricista" },
   { value: "tire_service", label: "Borracheiro" },
+  { value: "battery_support", label: "Suporte Bateria" },
+  { value: "motorcycle_mechanic", label: "Mecânico de Moto" },
 ] as const;
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -165,7 +167,7 @@ export const insertServiceRequestSchema = createInsertSchema(serviceRequests).om
   rating: true,
   ratingComment: true,
 }).extend({
-  serviceType: z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service"]),
+  serviceType: z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service", "battery_support", "motorcycle_mechanic"]),
 });
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
@@ -195,7 +197,7 @@ export const baseAddressSchema = z.object({
 
 export const serviceCategoriesSchema = z.object({
   serviceCategories: z.array(
-    z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service"])
+    z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service", "battery_support", "motorcycle_mechanic"])
   ).min(1, "Selecione pelo menos uma categoria de serviço"),
 });
 

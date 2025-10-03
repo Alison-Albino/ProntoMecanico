@@ -36,14 +36,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-**October 3, 2025 - Service Category System Implementation:**
-- **Multiple Service Categories:** Providers can now offer multiple types of services (Mecânico, Guincho, Assistência, Chaveiro, Eletricista, Borracheiro)
+**October 3, 2025 - Differentiated Wallet Interface:**
+- **Client Wallet:** Simplified interface showing only payment history (platform fees and refunds) without balance cards or tabs
+- **Mechanic Wallet:** Full-featured interface with three tabs (Ganhos, Aguardando, Saques), balance cards, and withdrawal functionality
+- **Transaction Visualization:** Payment transactions show in red with negative sign, refunds in green with positive sign
+- **User-Specific Experience:** Interface adapts based on user type for optimal UX
+
+**October 3, 2025 - Service Category System Expansion:**
+- **8 Service Categories:** Providers can now offer multiple types of services (Mecânico, Guincho, Assistência, Chaveiro, Eletricista, Borracheiro, Suporte Bateria, Mecânico de Moto)
 - **Category-based Filtering:** Service requests are only sent to providers who offer that specific category
 - **Database Schema:** Added serviceCategories array field to users table for storing provider's selected service categories
 - **Registration Update:** Providers must select at least one service category during registration
 - **Profile Management:** Providers can edit their service categories through their profile page
 - **Smart Notifications:** WebSocket notifications and pending requests API filter by service category to ensure providers only receive relevant requests
-- **New Service Types:** Added three new service categories - Chaveiro (Locksmith), Eletricista (Electrician), Borracheiro (Tire Service)
+- **Latest Additions:** Suporte Bateria (Battery Support) and Mecânico de Moto (Motorcycle Mechanic) for specialized services
 
 **October 2, 2025 - Vehicle Selection Feature:**
 - **New Service Request Step:** Added vehicle information collection (brand, model, license plate) after service type selection
