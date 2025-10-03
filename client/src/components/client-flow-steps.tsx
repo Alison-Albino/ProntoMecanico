@@ -280,7 +280,7 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 overflow-y-auto pb-40">
         <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
           <button
             onClick={onBack}
