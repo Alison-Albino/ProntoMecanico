@@ -108,14 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      console.log('[REGISTER] Received data:', {
-        email: req.body.email,
-        userType: req.body.userType,
-        hasBaseAddress: !!req.body.baseAddress
-      });
-
       const validatedData = insertUserSchema.parse(req.body);
-      console.log('[REGISTER] Validated userType:', validatedData.userType);
       
       const normalizedEmail = validatedData.email.toLowerCase();
       
@@ -133,7 +126,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       const username = `user_${cleanCpfCnpj}`;
       
-      console.log('[REGISTER] Creating user with userType:', validatedData.userType);
       const user = await storage.createUser({
         ...validatedData,
         email: normalizedEmail,
@@ -142,21 +134,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username,
       } as any);
 
-      console.log('[REGISTER] User created:', {
-        id: user.id,
-        userType: user.userType,
-        email: user.email
-      });
-
       if (user.userType === 'mechanic') {
         await storage.updateUserOnlineStatus(user.id, true);
-        console.log('[REGISTER] Mechanic set to online');
       }
 
       const updatedUser = await storage.getUser(user.id);
       const finalUser = updatedUser || user;
-
-      console.log('[REGISTER] Final user type:', finalUser.userType);
 
       const { password, ...userWithoutPassword } = finalUser;
       const token = generateSessionToken();
@@ -164,7 +147,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ user: userWithoutPassword, token });
     } catch (error: any) {
-      console.error('[REGISTER] Error:', error);
       res.status(400).json({ message: error.message });
     }
   });
@@ -289,30 +271,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/service-requests", authMiddleware, async (req, res) => {
     try {
-      console.log('[SERVICE REQUEST] Starting creation:', {
-        userId: req.user!.id,
-        userType: req.user!.userType,
-        paymentId: req.body.paymentId
-      });
-
       const { paymentId, ...requestData } = req.body;
 
       if (!paymentId) {
-        console.log('[SERVICE REQUEST] Error: No paymentId provided');
         return res.status(400).json({ message: "Pagamento obrigatório" });
       }
 
-      console.log('[SERVICE REQUEST] Checking payment status...');
       const paymentStatus = await getPaymentStatus(paymentId);
-      console.log('[SERVICE REQUEST] Payment status:', paymentStatus);
       
       if (paymentStatus.status !== 'approved') {
-        console.log('[SERVICE REQUEST] Error: Payment not approved');
         return res.status(400).json({ message: "Pagamento não confirmado" });
       }
 
       const pricing = calculateServicePricing(new Date());
-      console.log('[SERVICE REQUEST] Pricing calculated:', pricing);
 
       const validatedData = insertServiceRequestSchema.parse({
         ...requestData,
@@ -321,7 +292,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentStatus: 'paid',
         paymentMethod: 'pix',
       });
-      console.log('[SERVICE REQUEST] Data validated');
 
       const serviceRequest = await db
         .insert(serviceRequests)
@@ -336,10 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .returning()
         .then(rows => rows[0]);
 
-      console.log('[SERVICE REQUEST] Created successfully:', serviceRequest.id);
-
       const mechanics = await storage.getOnlineMechanics();
-      console.log('[SERVICE REQUEST] Broadcasting to', mechanics.length, 'online mechanics');
       mechanics.forEach(mechanic => {
         broadcastToUser(mechanic.id, {
           type: 'new_service_request',
@@ -349,7 +316,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(serviceRequest);
     } catch (error: any) {
-      console.error('[SERVICE REQUEST] Error:', error);
       res.status(400).json({ message: error.message });
     }
   });
@@ -646,48 +612,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/service-requests/:id/confirm", authMiddleware, async (req, res) => {
     try {
-      console.log('[CONFIRM] User', req.user!.id, 'confirming request', req.params.id);
       const request = await storage.getServiceRequest(req.params.id);
       
       if (!request) {
-        console.log('[CONFIRM] Request not found');
         return res.status(404).json({ message: "Chamada não encontrada" });
       }
 
       const isClient = request.clientId === req.user!.id;
       const isMechanic = request.mechanicId === req.user!.id;
 
-      console.log('[CONFIRM] isClient:', isClient, 'isMechanic:', isMechanic, 'status:', request.status);
-
       if (!isClient && !isMechanic) {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
       if (request.status !== 'completed') {
-        console.log('[CONFIRM] Wrong status:', request.status, 'expected: completed');
         return res.status(400).json({ message: "Serviço precisa estar concluído para confirmação" });
       }
 
       const updateData: any = {};
       if (isClient) {
         updateData.clientConfirmed = true;
-        console.log('[CONFIRM] Client confirming');
       } else if (isMechanic) {
         updateData.mechanicConfirmed = true;
-        console.log('[CONFIRM] Mechanic confirming');
       }
 
       const updated = await storage.updateServiceRequest(req.params.id, updateData);
-      console.log('[CONFIRM] Updated - clientConfirmed:', updated?.clientConfirmed, 'mechanicConfirmed:', updated?.mechanicConfirmed);
 
       const bothConfirmed = updated && updated.clientConfirmed && updated.mechanicConfirmed;
-      console.log('[CONFIRM] Both confirmed?', bothConfirmed);
 
       if (bothConfirmed && request.mechanicId && request.mechanicEarnings && request.platformFee) {
         const mechanicEarnings = parseFloat(request.mechanicEarnings);
         const platformFee = parseFloat(request.platformFee);
-
-        console.log('[CONFIRM] Creating transactions - earnings:', mechanicEarnings, 'fee:', platformFee);
 
         await storage.createTransaction(
           request.mechanicId,
@@ -706,7 +661,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         await storage.updateWalletBalance(request.mechanicId, mechanicEarnings);
-        console.log('[CONFIRM] Wallet balance updated');
         
         broadcastToUser(request.mechanicId, {
           type: 'payment_released',
@@ -806,14 +760,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/service-requests/history", authMiddleware, async (req, res) => {
     try {
-      console.log('[HISTORY] Fetching history for user:', req.user!.id, 'type:', req.user!.userType);
       const requests = await storage.getUserServiceRequests(req.user!.id);
-      console.log('[HISTORY] Total requests found:', requests.length);
       const history = requests.filter(r => r.status === 'completed' || r.status === 'cancelled');
-      console.log('[HISTORY] Completed/Cancelled:', history.length, 'statuses:', requests.map(r => r.status));
       res.json(history);
     } catch (error: any) {
-      console.error('[HISTORY] Error:', error);
       res.status(400).json({ message: error.message });
     }
   });
