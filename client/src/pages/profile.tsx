@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, User, Mail, Phone, Star, ArrowLeft, Bell, BellOff, MapPin, Shield } from 'lucide-react';
+import { LogOut, User, Mail, Phone, Star, ArrowLeft, Bell, BellOff, MapPin, Shield, Wrench, Truck, AlertCircle, Key, Zap, CircleDot } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNotifications } from '@/lib/use-notifications';
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
@@ -109,6 +109,10 @@ function ProfilePageContent() {
     baseLat: currentUser?.baseLat ? parseFloat(currentUser.baseLat) : 0,
     baseLng: currentUser?.baseLng ? parseFloat(currentUser.baseLng) : 0,
   });
+
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    currentUser?.serviceCategories || []
+  );
   
   const { data: profileUser, isLoading } = useQuery<any>({
     queryKey: [`/api/users/${userId}`],
@@ -146,6 +150,35 @@ function ProfilePageContent() {
     },
   });
 
+  const updateServiceCategoriesMutation = useMutation({
+    mutationFn: async (categories: string[]) => {
+      const response = await fetch('/api/user/service-categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ serviceCategories: categories }),
+      });
+      if (!response.ok) throw new Error('Erro ao atualizar categorias de serviço');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Categorias atualizadas",
+        description: "Suas categorias de serviço foram salvas com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handlePlaceSelect = (place: google.maps.places.PlaceResult | null) => {
     if (place?.geometry?.location && place?.formatted_address) {
       setBaseAddressData({
@@ -167,6 +200,27 @@ function ProfilePageContent() {
       return;
     }
     updateBaseAddressMutation.mutate(baseAddressData);
+  };
+
+  const handleServiceCategoriesSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedCategories.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Selecione pelo menos uma categoria de serviço",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateServiceCategoriesMutation.mutate(selectedCategories);
+  };
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
   };
 
   const handleLogout = async () => {
@@ -332,6 +386,66 @@ function ProfilePageContent() {
                     data-testid="button-save-address"
                   >
                     {updateBaseAddressMutation.isPending ? "Salvando..." : "Salvar Endereço"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {currentUser?.userType === 'mechanic' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="w-5 h-5" />
+                  Categorias de Serviço
+                </CardTitle>
+                <CardDescription>
+                  Escolha os tipos de serviço que você oferece. Você receberá chamados apenas dessas categorias.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleServiceCategoriesSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { id: 'mechanic', icon: Wrench, label: 'Mecânico' },
+                      { id: 'tow_truck', icon: Truck, label: 'Guincho' },
+                      { id: 'road_assistance', icon: AlertCircle, label: 'Assistência' },
+                      { id: 'locksmith', icon: Key, label: 'Chaveiro' },
+                      { id: 'electrician', icon: Zap, label: 'Eletricista' },
+                      { id: 'tire_service', icon: CircleDot, label: 'Borracheiro' },
+                    ].map(({ id, icon: Icon, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => toggleCategory(id)}
+                        className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                          selectedCategories.includes(id)
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                        data-testid={`button-category-${id}`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm font-medium">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedCategories.length > 0 && (
+                    <div className="p-3 bg-muted rounded-md">
+                      <p className="text-sm font-medium">
+                        {selectedCategories.length} categoria{selectedCategories.length > 1 ? 's' : ''} selecionada{selectedCategories.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={updateServiceCategoriesMutation.isPending || selectedCategories.length === 0}
+                    className="w-full"
+                    data-testid="button-save-categories"
+                  >
+                    {updateServiceCategoriesMutation.isPending ? "Salvando..." : "Salvar Categorias"}
                   </Button>
                 </form>
               </CardContent>

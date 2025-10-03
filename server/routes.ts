@@ -10,6 +10,7 @@ import {
   bankDataSchema,
   ratingSchema,
   baseAddressSchema,
+  serviceCategoriesSchema,
   serviceRequests,
   type User 
 } from "@shared/schema";
@@ -925,6 +926,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserBaseAddress(req.user!.id, validatedData);
 
       res.json({ message: "Endereço base atualizado" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/user/service-categories", authMiddleware, async (req, res) => {
+    try {
+      if (req.user!.userType !== 'mechanic') {
+        return res.status(403).json({ message: "Apenas prestadores podem configurar categorias de serviço" });
+      }
+
+      const validatedData = serviceCategoriesSchema.parse(req.body);
+      await storage.updateUserServiceCategories(req.user!.id, validatedData.serviceCategories);
+
+      res.json({ message: "Categorias de serviço atualizadas" });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

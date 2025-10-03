@@ -97,6 +97,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
+  async updateUserServiceCategories(userId: string, categories: string[]): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        serviceCategories: categories,
+      })
+      .where(eq(users.id, userId));
+  }
+
   async updateUserBankData(userId: string, bankData: BankData): Promise<void> {
     await db
       .update(users)

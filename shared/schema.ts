@@ -193,6 +193,12 @@ export const baseAddressSchema = z.object({
   baseLng: z.number({ required_error: "Coordenadas são obrigatórias" }),
 });
 
+export const serviceCategoriesSchema = z.object({
+  serviceCategories: z.array(
+    z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service"])
+  ).min(1, "Selecione pelo menos uma categoria de serviço"),
+});
+
 export const withdrawalSchema = z.object({
   amount: z.number().positive("Valor deve ser positivo"),
   method: z.enum(["bank_transfer", "pix"], {
@@ -220,5 +226,6 @@ export type Transaction = typeof transactions.$inferSelect;
 export type BankData = z.infer<typeof bankDataSchema>;
 export type Rating = z.infer<typeof ratingSchema>;
 export type BaseAddress = z.infer<typeof baseAddressSchema>;
+export type ServiceCategories = z.infer<typeof serviceCategoriesSchema>;
 export type WithdrawalRequest = z.infer<typeof withdrawalSchema>;
 export type PaymentMethodSelection = z.infer<typeof paymentMethodSchema>;
