@@ -27,6 +27,7 @@ export default function PaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'approved' | 'failed'>('pending');
   const [copied, setCopied] = useState(false);
+  const [forceCheck, setForceCheck] = useState(0);
 
   useEffect(() => {
     const storedData = localStorage.getItem('pendingServiceRequest');
@@ -39,57 +40,71 @@ export default function PaymentPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (pixData && paymentStatus === 'pending') {
-      const interval = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/payments/status/${pixData.paymentId}`, {
+  const checkPaymentStatus = async () => {
+    if (!pixData || !serviceData) return;
+    
+    try {
+      const response = await fetch(`/api/payments/status/${pixData.paymentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        console.log('Status do pagamento:', result);
+        
+        if (result.status === 'approved') {
+          setPaymentStatus('approved');
+          setIsProcessing(true);
+          
+          const serviceResponse = await fetch('/api/service-requests', {
+            method: 'POST',
             headers: {
+              'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
+            body: JSON.stringify({
+              ...serviceData,
+              paymentId: pixData.paymentId,
+            }),
           });
 
-          if (response.ok) {
-            const result = await response.json();
-            
-            if (result.status === 'approved') {
-              setPaymentStatus('approved');
-              clearInterval(interval);
-              
-              const serviceResponse = await fetch('/api/service-requests', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  ...serviceData,
-                  paymentId: pixData.paymentId,
-                }),
-              });
-
-              if (!serviceResponse.ok) {
-                throw new Error('Erro ao criar chamada');
-              }
-
-              const serviceRequest = await serviceResponse.json();
-              toast({
-                title: "Pagamento confirmado!",
-                description: "Procurando mecânicos próximos...",
-              });
-              
-              localStorage.removeItem('pendingServiceRequest');
-              setLocation(`/waiting/${serviceRequest.id}`);
-            }
+          if (!serviceResponse.ok) {
+            const errorData = await serviceResponse.json();
+            throw new Error(errorData.message || 'Erro ao criar chamada');
           }
-        } catch (error) {
-          console.error('Erro ao verificar status do pagamento:', error);
-        }
-      }, 3000);
 
+          const serviceRequest = await serviceResponse.json();
+          toast({
+            title: "Pagamento confirmado!",
+            description: "Procurando mecânicos próximos...",
+          });
+          
+          localStorage.removeItem('pendingServiceRequest');
+          setLocation(`/waiting/${serviceRequest.id}`);
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao verificar status do pagamento:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao processar pagamento",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pixData && paymentStatus === 'pending') {
+      checkPaymentStatus();
+      
+      const interval = setInterval(checkPaymentStatus, 3000);
       return () => clearInterval(interval);
     }
-  }, [pixData, paymentStatus, serviceData, token, toast, setLocation]);
+  }, [pixData, paymentStatus, forceCheck]);
 
   const preparePayment = async (data: ServiceData) => {
     try {
@@ -244,10 +259,14 @@ export default function PaymentPage() {
                         const data = await response.json();
                         toast({
                           title: "Pagamento simulado!",
-                          description: "Redirecionando...",
+                          description: "Processando...",
                         });
                         
                         console.log('Simulação realizada com sucesso:', data);
+                        
+                        setTimeout(() => {
+                          setForceCheck(prev => prev + 1);
+                        }, 500);
                       } catch (error) {
                         console.error('Erro ao simular pagamento:', error);
                         toast({
