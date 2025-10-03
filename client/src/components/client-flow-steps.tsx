@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation, Key, Zap, CircleDot, Battery, Bike } from 'lucide-react';
+import { MapPin, Wrench, Truck, AlertCircle, CreditCard, QrCode, ArrowLeft, Navigation, Key, Zap, CircleDot, Battery, Bike, Fuel } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -242,13 +242,6 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
       gradient: 'from-purple-500 to-pink-500',
     },
     {
-      id: 'road_assistance',
-      icon: AlertCircle,
-      title: 'Assistência',
-      subtitle: 'Ajuda na estrada',
-      gradient: 'from-orange-500 to-red-500',
-    },
-    {
       id: 'locksmith',
       icon: Key,
       title: 'Chaveiro',
@@ -282,6 +275,13 @@ export function ServiceTypeStep({ onNext, onBack }: ServiceTypeStepProps) {
       title: 'Mecânico de Moto',
       subtitle: 'Especialista em motos',
       gradient: 'from-indigo-500 to-blue-600',
+    },
+    {
+      id: 'diesel_mechanic',
+      icon: Fuel,
+      title: 'Mecânico Diesel',
+      subtitle: 'Especialista em diesel',
+      gradient: 'from-orange-500 to-red-500',
     },
   ];
 
