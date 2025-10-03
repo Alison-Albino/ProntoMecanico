@@ -660,7 +660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updated = await storage.updateServiceRequest(req.params.id, updateData);
-      console.log('[CONFIRM] Updated - clientConfirmed:', updated.clientConfirmed, 'mechanicConfirmed:', updated.mechanicConfirmed);
+      console.log('[CONFIRM] Updated - clientConfirmed:', updated?.clientConfirmed, 'mechanicConfirmed:', updated?.mechanicConfirmed);
 
       const bothConfirmed = updated && updated.clientConfirmed && updated.mechanicConfirmed;
       console.log('[CONFIRM] Both confirmed?', bothConfirmed);
