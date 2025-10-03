@@ -113,6 +113,12 @@ function ProfilePageContent() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     currentUser?.serviceCategories || []
   );
+
+  useEffect(() => {
+    if (currentUser?.serviceCategories) {
+      setSelectedCategories(currentUser.serviceCategories);
+    }
+  }, [currentUser?.serviceCategories]);
   
   const { data: profileUser, isLoading } = useQuery<any>({
     queryKey: [`/api/users/${userId}`],
