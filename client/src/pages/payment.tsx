@@ -231,14 +231,30 @@ export default function PaymentPage() {
                           },
                         });
                         
-                        if (response.ok) {
+                        if (!response.ok) {
+                          const errorData = await response.json();
                           toast({
-                            title: "Pagamento simulado!",
-                            description: "Processando...",
+                            title: "Erro ao simular",
+                            description: errorData.message || "Erro desconhecido",
+                            variant: "destructive",
                           });
+                          return;
                         }
+                        
+                        const data = await response.json();
+                        toast({
+                          title: "Pagamento simulado!",
+                          description: "Redirecionando...",
+                        });
+                        
+                        console.log('Simulação realizada com sucesso:', data);
                       } catch (error) {
                         console.error('Erro ao simular pagamento:', error);
+                        toast({
+                          title: "Erro",
+                          description: "Falha ao processar simulação",
+                          variant: "destructive",
+                        });
                       }
                     }}
                     data-testid="button-simulate-payment"
