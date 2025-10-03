@@ -113,11 +113,14 @@ export default function WalletPage() {
     return t.status === 'completed' && availableDate && availableDate > new Date();
   });
   const withdrawalTransactions = transactions.filter(t => t.type === 'withdrawal');
+  const paymentTransactions = transactions.filter(t => t.type === 'platform_fee' || t.type === 'refund');
 
   const renderTransaction = (transaction: Transaction) => {
     const amount = parseFloat(transaction.amount);
     const isEarning = transaction.type === 'mechanic_earnings';
     const isWithdrawal = transaction.type === 'withdrawal';
+    const isPayment = transaction.type === 'platform_fee';
+    const isRefund = transaction.type === 'refund';
     const isPending = transaction.status === 'pending';
     const isCancelled = transaction.status === 'cancelled';
     const availableDate = transaction.availableAt ? new Date(transaction.availableAt) : null;
@@ -132,12 +135,18 @@ export default function WalletPage() {
         <div className="flex items-center gap-4 flex-1">
           <div className={`p-2 rounded-full ${
             isEarning ? 'bg-green-500/10' : 
-            isWithdrawal ? 'bg-blue-500/10' : 'bg-gray-500/10'
+            isWithdrawal ? 'bg-blue-500/10' : 
+            isPayment ? 'bg-red-500/10' :
+            isRefund ? 'bg-green-500/10' : 'bg-gray-500/10'
           }`}>
             {isEarning ? (
               <ArrowDownToLine className="w-4 h-4 text-green-600 dark:text-green-400" />
             ) : isWithdrawal ? (
               <ArrowUpFromLine className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            ) : isPayment ? (
+              <ArrowUpFromLine className="w-4 h-4 text-red-600 dark:text-red-400" />
+            ) : isRefund ? (
+              <ArrowDownToLine className="w-4 h-4 text-green-600 dark:text-green-400" />
             ) : (
               <Clock className="w-4 h-4 text-gray-600" />
             )}
@@ -163,9 +172,11 @@ export default function WalletPage() {
         <div className="text-right ml-4">
           <p className={`text-lg font-bold ${
             isEarning ? 'text-green-600 dark:text-green-400' : 
-            isWithdrawal ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600'
+            isWithdrawal ? 'text-blue-600 dark:text-blue-400' : 
+            isPayment ? 'text-red-600 dark:text-red-400' :
+            isRefund ? 'text-green-600 dark:text-green-400' : 'text-gray-600'
           }`} data-testid={`transaction-amount-${transaction.id}`}>
-            {amount > 0 ? '+' : ''}R$ {Math.abs(amount).toFixed(2)}
+            {isRefund || isEarning ? '+' : isPayment || isWithdrawal ? '-' : ''}R$ {Math.abs(amount).toFixed(2)}
           </p>
           {isPending && (
             <Badge variant="outline" className="mt-1 text-xs border-orange-500/50 text-orange-600">
@@ -194,6 +205,47 @@ export default function WalletPage() {
       </div>
     );
   };
+
+  if (user?.userType === 'client') {
+    return (
+      <div className="container max-w-6xl mx-auto p-4 space-y-6">
+        <div className="flex items-center gap-3">
+          <WalletIcon className="w-8 h-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">Carteira</h1>
+            <p className="text-muted-foreground">Histórico de pagamentos</p>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Histórico de Pagamentos
+            </CardTitle>
+            <CardDescription>
+              Todos os pagamentos realizados e reembolsos recebidos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingTransactions ? (
+              <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+            ) : paymentTransactions.length === 0 ? (
+              <div className="text-center py-12">
+                <WalletIcon className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhum pagamento ainda</p>
+                <p className="text-sm text-muted-foreground mt-1">Solicite um serviço para começar</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {paymentTransactions.map(renderTransaction)}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-6xl mx-auto p-4 space-y-6">
