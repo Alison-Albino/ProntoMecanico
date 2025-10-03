@@ -93,38 +93,32 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <div className="container max-w-2xl mx-auto p-4">
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            size="icon"
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      <div className="flex-1 overflow-y-auto pb-24">
+        <div className="sticky top-0 bg-background/80 backdrop-blur-lg border-b z-10 p-4">
+          <button
             onClick={onBack}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             data-testid="button-back"
-            className="rounded-full"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
+            <span className="font-medium">Voltar</span>
+          </button>
         </div>
 
-        <Card className="border-2 shadow-lg">
-          <CardHeader className="text-center space-y-4 pb-6">
-            <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-              <Car className="w-10 h-10 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-3xl font-bold mb-2" data-testid="text-title">
-                Dados do Veículo
-              </CardTitle>
-              <CardDescription className="text-base">
-                Informe os dados do veículo que precisa de assistência
-              </CardDescription>
-            </div>
-          </CardHeader>
+        <div className="p-6 space-y-8 max-w-md mx-auto w-full">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-bold tracking-tight" data-testid="text-title">
+              Dados do Veículo
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Informe os dados do veículo que precisa de assistência
+            </p>
+          </div>
 
-          <CardContent className="space-y-5 px-6 pb-8">
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-6 duration-500 delay-100">
             <div className="space-y-2">
-              <Label htmlFor="plate" className="text-base font-semibold">
+              <Label htmlFor="plate" className="text-base font-medium">
                 Placa *
               </Label>
               <Input
@@ -134,7 +128,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
                 onChange={(e) => handlePlateChange(e.target.value)}
                 placeholder="ABC-1234"
                 maxLength={8}
-                className="text-lg h-12 uppercase"
+                className="text-lg h-12 uppercase rounded-2xl border-2 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
                 data-testid="input-plate"
               />
               {errors.plate ? (
@@ -149,7 +143,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="brand" className="text-base font-semibold">
+              <Label htmlFor="brand" className="text-base font-medium">
                 Marca *
               </Label>
               <Input
@@ -161,7 +155,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
                   if (errors.brand) setErrors({ ...errors, brand: undefined });
                 }}
                 placeholder="Ex: Chevrolet, Volkswagen, Fiat..."
-                className="text-lg h-12"
+                className="text-lg h-12 rounded-2xl border-2 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
                 data-testid="input-brand"
               />
               {errors.brand && (
@@ -172,7 +166,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="model" className="text-base font-semibold">
+              <Label htmlFor="model" className="text-base font-medium">
                 Modelo *
               </Label>
               <Input
@@ -184,7 +178,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
                   if (errors.model) setErrors({ ...errors, model: undefined });
                 }}
                 placeholder="Ex: Onix, Gol, Argo..."
-                className="text-lg h-12"
+                className="text-lg h-12 rounded-2xl border-2 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
                 data-testid="input-model"
               />
               {errors.model && (
@@ -195,7 +189,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="year" className="text-base font-semibold">
+              <Label htmlFor="year" className="text-base font-medium">
                 Ano *
               </Label>
               <Input
@@ -209,7 +203,7 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
                 }}
                 placeholder="Ex: 2020"
                 maxLength={4}
-                className="text-lg h-12"
+                className="text-lg h-12 rounded-2xl border-2 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
                 data-testid="input-year"
               />
               {errors.year && (
@@ -218,17 +212,18 @@ export function VehicleSelection({ onBack, onNext }: VehicleSelectionProps) {
                 </p>
               )}
             </div>
+          </div>
+        </div>
+      </div>
 
-            <Button
-              onClick={handleSubmit}
-              className="w-full h-14 text-lg font-semibold mt-6 shadow-md hover:shadow-lg transition-shadow"
-              size="lg"
-              data-testid="button-continue"
-            >
-              Continuar para Pagamento
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="fixed bottom-20 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent">
+        <Button
+          onClick={handleSubmit}
+          className="w-full max-w-md mx-auto h-14 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all"
+          data-testid="button-continue"
+        >
+          Continuar
+        </Button>
       </div>
     </div>
   );
