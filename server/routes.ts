@@ -308,12 +308,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .then(rows => rows[0]);
 
       const mechanics = await storage.getOnlineMechanics();
-      mechanics.forEach(mechanic => {
-        broadcastToUser(mechanic.id, {
-          type: 'new_service_request',
-          data: serviceRequest,
+      const serviceType = validatedData.serviceType;
+      
+      mechanics
+        .filter(mechanic => 
+          mechanic.serviceCategories && 
+          mechanic.serviceCategories.includes(serviceType)
+        )
+        .forEach(mechanic => {
+          broadcastToUser(mechanic.id, {
+            type: 'new_service_request',
+            data: serviceRequest,
+          });
         });
-      });
 
       res.json(serviceRequest);
     } catch (error: any) {
@@ -348,15 +355,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const allRequests = await storage.getPendingServiceRequests();
+      const userCategories = req.user!.serviceCategories || [];
       
-      const nearbyRequests = allRequests.filter(request => {
+      const filteredRequests = allRequests.filter(request => {
         const requestLat = parseFloat(request.pickupLat);
         const requestLng = parseFloat(request.pickupLng);
         const distance = calculateDistance(mechanicLat, mechanicLng, requestLat, requestLng);
-        return distance <= MAX_RADIUS_KM;
+        
+        const isWithinRadius = distance <= MAX_RADIUS_KM;
+        const hasMatchingCategory = userCategories.includes(request.serviceType);
+        
+        return isWithinRadius && hasMatchingCategory;
       });
 
-      res.json(nearbyRequests);
+      res.json(filteredRequests);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
