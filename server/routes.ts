@@ -110,7 +110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertUserSchema.parse(req.body);
       
-      const existingEmail = await storage.getUserByEmail(validatedData.email);
+      const normalizedEmail = validatedData.email.toLowerCase();
+      
+      const existingEmail = await storage.getUserByEmail(normalizedEmail);
       if (existingEmail) {
         return res.status(400).json({ message: "Email já cadastrado" });
       }
@@ -124,6 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       const user = await storage.createUser({
         ...validatedData,
+        email: normalizedEmail,
         cpfCnpj: cleanCpfCnpj,
         password: hashedPassword,
       });

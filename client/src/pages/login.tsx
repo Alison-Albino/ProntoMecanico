@@ -271,7 +271,7 @@ function LoginForm() {
                     type="email"
                     data-testid="input-email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value.toLowerCase())}
                     placeholder="seu@email.com"
                     required
                   />

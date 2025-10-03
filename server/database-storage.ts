@@ -45,7 +45,7 @@ export class DatabaseStorage implements IStorage {
       return this.getUserByCpfCnpj(cleanIdentifier);
     }
     
-    return this.getUserByEmail(identifier);
+    return this.getUserByEmail(identifier.toLowerCase());
   }
 
   async getAllUsers(): Promise<User[]> {
