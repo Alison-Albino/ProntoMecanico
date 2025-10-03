@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   birthDate: timestamp("birth_date").notNull(),
   phone: text("phone").notNull(),
   userType: text("user_type").notNull(),
+  serviceCategories: text("service_categories").array(),
   isOnline: boolean("is_online").default(false),
   currentLat: decimal("current_lat", { precision: 10, scale: 7 }),
   currentLng: decimal("current_lng", { precision: 10, scale: 7 }),
@@ -101,6 +102,15 @@ export const transactions = pgTable("transactions", {
   completedAt: timestamp("completed_at"),
 });
 
+export const SERVICE_CATEGORIES = [
+  { value: "mechanic", label: "Mecânico" },
+  { value: "tow_truck", label: "Guincho" },
+  { value: "road_assistance", label: "Assistência 24h" },
+  { value: "locksmith", label: "Chaveiro" },
+  { value: "electrician", label: "Eletricista" },
+  { value: "tire_service", label: "Borracheiro" },
+] as const;
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -117,12 +127,21 @@ export const insertUserSchema = createInsertSchema(users).omit({
   userType: z.enum(["client", "mechanic"], {
     required_error: "Tipo de usuário é obrigatório",
   }),
+  serviceCategories: z.array(z.string()).optional(),
   baseAddress: z.string().optional(),
   baseLat: z.union([z.string(), z.number()]).optional(),
   baseLng: z.union([z.string(), z.number()]).optional(),
 }).refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
   message: "As senhas não coincidem",
   path: ["confirmPassword"],
+}).refine((data) => {
+  if (data.userType === "mechanic") {
+    return data.serviceCategories && data.serviceCategories.length > 0;
+  }
+  return true;
+}, {
+  message: "Prestadores devem selecionar pelo menos 1 categoria de serviço",
+  path: ["serviceCategories"],
 });
 
 export const loginSchema = z.object({
@@ -146,7 +165,7 @@ export const insertServiceRequestSchema = createInsertSchema(serviceRequests).om
   rating: true,
   ratingComment: true,
 }).extend({
-  serviceType: z.enum(["mechanic", "tow_truck", "road_assistance", "other"]),
+  serviceType: z.enum(["mechanic", "tow_truck", "road_assistance", "locksmith", "electrician", "tire_service"]),
 });
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
